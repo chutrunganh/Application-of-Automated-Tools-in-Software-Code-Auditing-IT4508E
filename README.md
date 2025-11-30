@@ -595,3 +595,7 @@ ASan hoạt động dựa trên hai cơ chế chính:
 - **Redzones (Vùng đỏ)**: Trình biên dịch chèn các vùng bộ nhớ bị "đầu độc" (poisoned) xung quanh các biến trên stack và heap. Nếu chương trình truy cập vào vùng redzone (tràn bộ đệm), ASan sẽ kiểm tra shadow memory, phát hiện giá trị bị cấm và dừng chương trình ngay lập tức với báo cáo chi tiết.  
 
 Việc sử dụng ASan là bắt buộc trong kế hoạch kiểm thử này để đảm bảo mọi vi phạm bộ nhớ đều được phát hiện bởi Radamsa và AFL++.
+
+## 2.3 AddressSanitizer (ASan)
+
+.....
