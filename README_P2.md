@@ -71,46 +71,96 @@ Segmentation fault (core dumped)
 
 Mã nguồn của Fuzzgoat (`fuzzgoat.c`) tương đối nhỏ gọn (~1200 dòng). Fuzzgoat được cấy ghép nhiều lỗ hổng điển hình để làm thước đo cho các công cụ kiểm thử. Các lỗ hổng này đã được comment lại trong mã nguồn. Bảng dưới đây tóm tắt các lỗ hổng chính cần tìm:
 
-**1 Lỗi Use-After-Free (UAF) với Mảng Rỗng**
+**1. Lỗ hổng Use After Free (Sử dụng bộ nhớ sau khi giải phóng)**
 
-- Vị trí: Hàm `new_value`, trong khối xử lý `json_array` (dòng 124)
-- Cơ chế: Khi parser gặp một mảng rỗng `[]`, mã nguồn được chèn thêm một lệnh `free(*top)` :
+- Vị trí: Hàm `new_value`, bên trong `case json_array`.
 
 ```c
-if (value->u.array.length == 0) {
-    free(*top);
+if (value->u.array.length == 0)
+{
+   free(*top); // Dòng gây lỗi
+   break;
 }
 ```
+
+- Phân tích nguyên nhân: Khi trình phân tích cú pháp (parser) gặp một mảng JSON rỗng (`[]`), nó thực hiện lệnh `free(*top)` để giải phóng khối nhớ được trỏ bởi `*top`. Tuy nhiên, con trỏ này không được gán lại thành `NULL` hoặc được xử lý đúng cách để ngăn chặn việc truy cập sau đó. Chương trình vẫn tiếp tục chạy và cố gắng sử dụng vùng nhớ đã bị giải phóng này ở các bước tiếp theo.
 
 Ý đồ là giải phóng con trỏ `*top` khi mảng rỗng vì mảng khi này không cần thiết. Tuy nhiên, con trỏ `*top` này sau đó vẫn được tham chiếu hoặc sử dụng trong logic dọn dẹp bộ nhớ (`json_value_free`).
 
 
-- Hậu quả: Chương trình truy cập vào vùng nhớ đã được trả lại cho hệ thống. Nếu vùng nhớ này đã bị ghi đè hoặc cấp phát cho đối tượng khác, hành vi của chương trình sẽ không xác định, có thể dẫn đến thực thi mã từ xa.
+- Hậu quả: Gây ra lỗi hư hỏng bộ nhớ (memory corruption), có thể dẫn đến crash chương trình hoặc trong các tình huống thực tế nghiêm trọng hơn là thực thi mã tùy ý (arbitrary code execution).
+
+- Cách kích hoạt: Sử dụng input là một mảng JSON rỗng: 
+  - Payload: `[]`
+  - File mẫu: `input-files/emptyArray`
+
+**2. Lỗ hổng Out-of-bounds Read / Invalid Free (Đọc ngoài vùng nhớ / Giải phóng sai)**
+
+- Vị trí: Hàm `json_value_free_ex`, bên trong case `json_object`
+
+```c
+value = value->u.object.values [value->u.object.length--].value;
+```
+
+- Phân tích nguyên nhân: Đoạn mã sử dụng toán tử giảm sau (post-decrement) `length--` làm chỉ số mảng.
+
+  - Nếu mảng có độ dài là `N`, các chỉ số hợp lệ là từ `0` đến `N-1`.
+
+  - Việc sử dụng `[length--]` sẽ truy cập vào phần tử tại chỉ số `N` (vượt quá giới hạn mảng), sau đó mới giảm giá trị `length`. Điều này dẫn đến việc đọc dữ liệu rác hoặc dữ liệu không thuộc quyền quản lý của mảng đó.
+
+- Hậu quả: Đọc bộ nhớ không hợp lệ, dẫn đến việc chương trình cố gắng giải phóng (free) một con trỏ rác hoặc sai địa chỉ trong câu lệnh if phía trên logic này, gây crash hoặc tham chiếu sai bộ nhớ.
+
+- Cách kích hoạt: Sử dụng một đối tượng JSON hợp lệ bất kỳ.
+
+  - Payload: `{"":0}`
+
+  - File mẫu: `input-files/validObject`.
+
+- Hậu quả: `free()` yêu cầu con trỏ phải trỏ chính xác vào đầu vùng nhớ được cấp phát bởi `malloc()`. Việc truyền một con trỏ sai lệch (trỏ vào redzone hoặc metadata của allocator) sẽ gây ra lỗi Invalid Free hoặc làm hỏng cấu trúc heap (heap corruption).
 
 
-Dấu hiệu nhận biết với ASan: Báo cáo ERROR: AddressSanitizer: heap-use-after-free.
 
-4.2 Lỗi Invalid Free do Con trỏ bị Dịch chuyển
+**3. Lỗ hổng Invalid Pointer Free (Giải phóng con trỏ không hợp lệ)**
 
-Vị trí: Hàm json_value_free_ex, xử lý chuỗi rỗng ("").
-Cơ chế: Một đoạn mã kiểm tra nếu chuỗi có độ dài bằng 0, nó sẽ thực hiện ptr-- (giảm con trỏ đi 1 byte). Sau đó, con trỏ bị dịch chuyển này được truyền vào hàm free().
-Hậu quả: free() yêu cầu con trỏ phải trỏ chính xác vào đầu vùng nhớ được cấp phát bởi malloc. Việc truyền một con trỏ sai lệch (trỏ vào redzone hoặc metadata của allocator) sẽ gây ra lỗi Invalid Free hoặc làm hỏng cấu trúc heap (heap corruption).
-Dấu hiệu nhận biết với ASan: Báo cáo attempting free on address which was not malloc()-ed.
+- Vị trí: Hàm `json_value_free_ex`, bên trong case `json_string`.
 
-4.3 Lỗi Null Pointer Dereference
+```c
+if (!value->u.string.length){
+  value->u.string.ptr--; // Dòng gây lỗi
+}
+// ... sau đó ...
+settings->mem_free (value->u.string.ptr, settings->user_data);
+```
 
-Vị trí: Xử lý chuỗi có độ dài 1 ký tự (ví dụ: "A").
-Cơ chế: Mã nguồn có đoạn kiểm tra: if (length == 1). Bên trong khối này, một con trỏ NULL được khởi tạo và chương trình cố gắng in giá trị của nó: printf("%d", *null_pointer).
-Hậu quả: Truy cập địa chỉ 0 gây ra Segmentation Fault (Segfault) ngay lập tức, làm sập chương trình (Denial of Service).
-Dấu hiệu nhận biết với ASan: Báo cáo SEGV on unknown address 0x000000000000.
+- Phân tích nguyên nhân: Nếu chuỗi JSON là chuỗi rỗng (độ dài bằng 0), mã nguồn cố tình giảm địa chỉ con trỏ `value->u.string.ptr` đi 1 đơn vị. Sau đó, chương trình gọi hàm `mem_free` (tương đương `free`) lên con trỏ đã bị thay đổi này. Trình quản lý bộ nhớ chỉ có thể giải phóng địa chỉ bắt đầu chính xác của khối nhớ đã cấp phát; việc truyền vào một địa chỉ sai sẽ gây lỗi.
 
-4.4 Lỗi Invalid Read / Heap Corruption (Object)
+- Hậu quả: Gây lỗi phân bổ bộ nhớ, thường dẫn đến `SIGABRT` (Process abort signal) hoặc crash chương trình ngay lập tức.
 
-Vị trí: Hàm json_value_free_ex, xử lý json_object.
-Cơ chế: Một vòng lặp sử dụng value->u.object.length-- sai cách, dẫn đến việc chỉ số mảng bị giảm xuống mức âm hoặc truy cập phần tử mảng sai lệch trước khi giải phóng.
-Hậu quả: Đọc/Ghi ngoài vùng nhớ heap (Heap Buffer Overflow/Underflow).
+- Cách kích hoạt: Sử dụng input là một chuỗi JSON rỗng.
+
+  - Payload: `""`
+
+  - File mẫu: `input-files/emptyString.`
+
+**4. Lỗ hổng Null Pointer Dereference (Truy cập con trỏ NULL)**
+- Vị trí: hàm `json_value_free_ex`, bên trong case `json_string`.
 
 
+```c
+if (value->u.string.length == 1) {
+  char *null_pointer = NULL;
+  printf ("%d", *null_pointer); // Dòng gây lỗi
+}
+```
+- Phân tích nguyên nhân: Đoạn mã kiểm tra nếu chuỗi có độ dài bằng 1. Nếu đúng, nó khởi tạo một con trỏ `null_pointer` với giá trị `NULL` và cố gắng truy cập (dereference) giá trị mà nó trỏ tới để in ra.
+
+- Hậu quả: Truy cập vào địa chỉ 0 (NULL) là bất hợp pháp trong hầu hết các hệ điều hành hiện đại, dẫn đến việc hệ điều hành chấm dứt chương trình ngay lập tức (Segmentation Fault / SIGSEGV).
+
+- Cách kích hoạt: Sử dụng input là một chuỗi JSON có độ dài đúng bằng 1 ký tự.
+
+  - Payload: `"A"`
+
+  - File mẫu: `input-files/oneByteString`.
 
 # Kiểm tra bằng ESBMC
 
