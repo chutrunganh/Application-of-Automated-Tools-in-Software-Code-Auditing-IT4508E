@@ -1,0 +1,9 @@
+{
+  "id": 1,
+  "name": "Sample Item",
+  "tags": ["test", "demo", "json"],
+  "details": {
+    "created_at": "2025-01-01",
+    "description": "This is a dummy JSON object."
+  }
+}
