@@ -1,6 +1,6 @@
 # Project cho môn học IT4508E — Software Security
 
-# Kiểm thử phần mềm là gì
+# 1. Kiểm thử phần mềm là gì
 
 Kiểm thử phần mềm là cố gắng tìm ra các lỗi/chứng minh không tồn tại lỗi để đảm bảo phần mềm hoạt động an toàn, đáng tin cậy. Để đảm báo phần mềm được kiểm thử đầy đủ, người ta thường dựa vào các tiêu chí như:
 
@@ -23,7 +23,7 @@ Có hai phương pháp kiểm thử chính:
 | Chứng minh    | Có thể chứng minh không bao giờ xảy ra loại lỗi này bằng cách chứng minh tính đúng dắn của phương trình biến đổi toán học | Không thể chứng minh không thể xảy ra loại lỗi này, chỉ có thể chứng minh phản chứng bằng sự hiện diện của lỗi |
 | Kết quả       | Có thể có False Positives (Báo động giả) do báo lỗi ở chỗ thực ra không có lỗi | Không có False Positives, nếu nó báo lỗi (ví dụ: crash) thì đó 100% là lỗi thật |
 
-## Các kỹ thuật trong phân tích tĩnh
+## 1.1 Các kỹ thuật trong phân tích tĩnh
 
 ```mermaid
 flowchart TD
@@ -37,10 +37,13 @@ flowchart TD
     G --> G1[Type Checking]
     G --> G2[Model Checking]
     G --> G3[Formal Reasoning]
-    G --> G4[Hoare Logic]
-    G --> G5[Automated Theorem Prover]
-    G --> G6[Symbolic Execution]
-    G --> G7[Satisfiability Modulo Theories SMT]
+
+    G2 --> G21[Bounded Model Checking]
+
+    G3 --> G31[Hoare Logic]
+    G3 --> G32[Automated Theorem Prover]
+    G3 --> G33[Symbolic Execution]
+    G3 --> G34[Satisfiability Modulo Theories SMT]
 ```
 
 
@@ -73,15 +76,55 @@ flowchart TD
 
         - **Satisfiability Modulo Theories (SMT)**: Từ các ràng buộc do Symbolic Execution tạo ra, SMT Solver sẽ giải quyết các công thức logic phức tạp để xác định tính khả thi của các đường dẫn trong chương trình. Một vài công cụ SMT phổ biến là **Z3**, **CVC5**, **Boolector**
 
-## Các kỹ thuật trong phân tích động
+## 1.2 Các kỹ thuật trong phân tích động
 
-Ý tưởng là kiểm thử với một lượng lớn các đầu vào ngẫu nhiên hoặc bất thường để phát hiện lỗi tiềm ẩn trong chương trình. Ví dụ như số âm, số cực lớn, kiểu dữ liệu khác, chuỗi rất dài, chuỗi rỗng, các ký tự đặc biệt, v.v.
+````mermaid
+flowchart TD
+    A[Dynamic Analysis] --> B[Instrumentation & Profiling]
+    A --> C[Fuzzing]
+    A --> D[Sanitizers Runtime Sanity Checks]
+    A --> E[Dynamic Taint / Information Flow Tracking]
+    A --> F[Dynamic Symbolic Execution / Concolic Testing]
+    A --> G[Memory & Thread Error Detection]
+    A --> H[Tracing & Tracing Frameworks]
 
-![alt text](image-13.png)
+    G --> G1[Memory Leak Detection]
+    G --> G2[Race Condition / Data Race Detection]
 
-Các loại fuzzing:
+    H --> H1[Dynamic Tracing]
+    H --> H2[Binary Instrumentation Pin, DynamoRIO]
+````
 
-1. **Basic/random fuzzing**: Tạo các đầu vào ngẫu nhiên hoàn toàn mà không có cấu trúc hay định dạng cụ thể. Hiệu quả thường thấp và chỉ dò ra các lỗi cú pháp, không dò được các lỗi nghiệp vụ phức tạp. Có thể thử:
+- **Instrumentation & Profiling**: Chèn code hoặc dùng công cụ runtime để thu thập thông tin hiệu năng (CPU, thời gian, sử dụng bộ nhớ), giúp hiểu điểm nghẽn (bottleneck) và tối ưu hóa phần mềm.
+
+- **Sanitizers (Runtime Sanity Checks)**: Công cụ như AddressSanitizer (ASan), UndefinedBehaviorSanitizer (UBSan) chèn kiểm tra thời gian chạy để phát hiện lỗi bộ nhớ (overflow, dùng sau khi free, uninitialized) hoặc hành vi không xác định.
+
+- **Dynamic Taint / Information Flow Tracking**: Gắn các “nhãn” (taint) cho dữ liệu đầu vào hoặc biến, theo dõi cách dữ liệu này lan truyền qua chương trình lúc chạy để phát hiện rò rỉ, injection hoặc lỗ hổng bảo mật.
+
+- **Dynamic Symbolic Execution / Concolic Testing**: Kết hợp thực thi thực tế (concrete) và symbolic execution để tạo ra đầu vào mới kiểm thử các đường đi khó hoặc chưa được cover.
+
+- **Memory & Thread Error Detection**:
+
+    -   Memory Leak Detection: Phát hiện vùng nhớ được cấp phát mà không được giải phóng.
+
+    -   Race Condition: Phát hiện điều kiện tranh chấp (data race) trong chương trình đa luồng.
+
+- **Tracing & Tracing Frameworks**:
+
+    - Dynamic Tracing (DTrace): Theo dõi sự kiện hệ thống, hàm, gọi hàm… thời gian chạy để hiểu hành vi phần mềm. 
+Wikipedia
+
+    - Binary Instrumentation (Pin, DynamoRIO): Chèn instrumentation vào file nhị phân hoặc khi load, để phân tích runtime mà không cần source code. Ví dụ: Intel Pin là framework instrumentation. 
+
+- **Fuzzing**: Sinh đầu vào ngẫu nhiên hoặc biến đổi từ một đầu vào ban đầu, đẩy các đầu vào này cho chương trình mục tiêu, quan sát phản hồi (crash, lỗi, treo) để tìm lỗi.
+
+
+    ![alt text](image-1.png)
+
+
+Cụ thể hơn vầ các loại fuzzing:
+
+1. **Dumb/random fuzzing/Black-box** (ví dụ công cụ Radamsa): Tạo các đầu vào ngẫu nhiên hoàn toàn mà không có cấu trúc hay định dạng cụ thể. Hiệu quả thường thấp và chỉ dò ra các lỗi cú pháp, không dò được các lỗi nghiệp vụ phức tạp. Có thể thử:
     - Input rất dài, rất ngắn, để trống
     - Các giá trị biên, giá trị âm, giá trị cực lớn
     - Các ký tự đặc biệt như null, newline, %s, %x, ;, ', /, v.v hay các từ ngữ đặc biệt theo ứng dụng như SQL keywords, HTML tags, script tags, v.v
@@ -91,20 +134,23 @@ Các loại fuzzing:
     - Thêm, xóa, hoặc thay thế các trường trong file JSON hoặc XML hợp lệ
     - Thay đổi các tham số URL trong các request HTTP hợp lệ
 
-3. **Generation-based fuzzing/grammar-based/model-based**: Tạo các đầu vào từ đầu dựa trên một mô hình hoặc định dạng cụ thể(vd như cấu trúc gói tin, cấu trúc request). Hiệu quả cao nhất vì có thể kiểm soát cấu trúc và nội dung của dữ liệu. Tuy nhiên cần tinh chỉnh/ tạo fuzzer riêng. Thường dùng cho các giao thức giao tiếp (như GSM, SMS). Cách thức: Tạo ra các gói tin "hơi sai lệch" (malformed), sai độ dài, hoặc rơi vào các trường hợp biên (corner cases) để kiểm tra xem hệ thống có xử lý lỗi đúng cách hay bị crash.
+3. **Generation-based fuzzing/grammar-based/model-based**: Tạo các đầu vào từ đầu dựa trên một mô hình hoặc định dạng cụ thể(vd như cấu trúc gói tin, cấu trúc request). Cách thức: Tạo ra các gói tin "hơi sai lệch" (malformed), sai độ dài, hoặc rơi vào các trường hợp biên (corner cases) để kiểm tra xem hệ thống có xử lý lỗi đúng cách hay bị crash. Hiệu quả cao nhất vì có thể kiểm soát cấu trúc và nội dung của dữ liệu. Tuy nhiên cần tinh chỉnh/ tạo fuzzer riêng. Thường dùng cho các giao thức giao tiếp (như GSM, SMS).
 
-4. **Evolutionary / Greybox** (Tiến hóa - VD: công cụ AFL): Fuzzer thông minh, đầu tiên nó thử các random inout mutation, quan sát xem input nào giúp code chạy vào các nhánh mới (tăng coverage) thì giữ lại input đó để đột biến tiếp. Công cụ AFL đã ngưng cập nhật từ 2017, sử dụng AFL++ hoặc AFLnet (cho network protocol) thay thế.
-
-5. **Whitebox** (VD: SAGE): Dùng kỹ thuật Symbolic Execution (thực thi ký hiệu) để phân tích mã nguồn, tính toán chính xác giá trị input cần thiết để đi vào các nhánh code khó.
+4. **Evolutionary / Greybox** (Tiến hóa - VD: công cụ AFL): Công cụ sử dụng một lượng nhỏ thông tin từ chương trình (thường là code coverage thu được qua instrumentation) để dẫn dắt quá trình sinh dữ liệu. Nếu một đầu vào kích hoạt một nhánh mã mới, nó sẽ được giữ lại làm hạt giống (seed) cho thế hệ tiếp theo.
 
 
 
-### Cách mà AFL hoạt động
+5. **Whitebox** (VD: SAGE): Dùng kỹ thuật Symbolic Execution để phân tích mã nguồn, tính toán chính xác giá trị input cần thiết để đi vào các nhánh code khó.
 
 
-# Các công cụ được sử dụng
+> [!NOTE]
+> Công cụ AFL đã ngưng cập nhật từ 2017, sử dụng AFL++ hoặc AFLnet (cho network protocol) thay thế.
 
-## ESBMC
+# 2. Các công cụ được sử dụng
+
+## 2.1 ESBMC
+
+![alt text](image-3.png)
 
 ### Cơ sở lý thuyết
 
@@ -214,7 +260,18 @@ Thêm flag `--k-induction` để bật tính năng này trong ESBMC.
 
 Đó là về khía cạnh lý thuyết, về mặt implementation, ESBMC hoạt động theo các giai đoạn sau:
 
-![alt text](image-1.png)
+```mermaid
+graph LR
+    A[C Source] -- Scan --> B[clang];
+    B --Clang AST--> C[AST Converter];
+    C --ESBMC AST--> D[GOTO Converter];
+    D --GOTO Program - CFG--> E[Symbolic Execution];
+    E --SSA Form--> F[SMT Solver];
+    F --C ∧ ¬P--> G{Result};
+    G -- Property holds up to bound k --> H[Verification Successful];
+    G -- Property violation --> I[Counterexample];
+```
+
 
 Để đi theo quá trình hoạt động này, ta sử dụng một đoạn code mẫu:
 
@@ -427,16 +484,20 @@ Nếu không có lỗi (đổi `assert(x == 10)` thành `assert(x == 6)`), outpu
 VERIFICATION SUCCESSFUL
 ```
 
-## AFL++
+## 2.2 AFL++
 
-### Cơ sở lý thuyết
+![alt text](image-2.png)
 
 
 ### Quá trình hoạt động của AFL++
 
-Nếu một input mới làm chương trình chạy vào một nhánh code chừa từng đi qua trước đây, AFL sẽ coi đó là một **interesting input** và sẽ giữu lại để khai thác tiếp. Cụ thể:
+#### Cách AFL++ theo dõi độ bao phủ code (Code Coverage)
+
+Nếu một input mới làm chương trình chạy vào một nhánh code chừa từng đi qua trước đây, AFL sẽ coi đó là một **interesting input** và sẽ giữ lại để khai thác tiếp. Cụ thể:
 
 ![alt text](image-14.png)
+
+*Fig 1 Quy trình hoạt động của AFL++*
 
 Với các input trong danh sách, mỗi input được chạy, AFL sẽ ghi lại các nhánh được chạy. Nó làm vậy bằng cách theo dõi các lệnh Jump trong mã ASM. 
 
@@ -450,11 +511,11 @@ Các nhánh mà input đi qua được biểu diễn bằng một bản đồ bi
 Lưu lại nếu độ bao phủ tăng.
 - Các dấu tích (✓) trong hình (như ✓1, ✓2, ✓3) có nghĩa là: "À, trong lần chạy này, code đã thực hiện bước nhảy đó rồi".
 
-Để có thể ghi lại các bước nhảy vào bản đồ bitmap, AFL sử dụng một kỹ thuật gọi là **instrumentation** (chèn mã theo dõi) vào mã nguồn hoặc mã máy của chương trình mục tiêu. AFL dùng trình biên dịch riêng (`afl-gcc` hoặc `afl-clang`) để chèn code theo dõi vào lúc biên dịch. Cụ thể, sau mỗi câu lệnh rẽ nhánh trong source code, nó chèn thêm:
+Để có thể ghi lại các bước nhảy vào bản đồ bitmap, AFL sử dụng một kỹ thuật gọi là **instrumentation** (chèn mã theo dõi) vào mã nguồn hoặc mã máy của chương trình mục tiêu. AFL dùng trình biên dịch riêng như `afl-gcc`, `afl-clang` hoặc `afl-clang-fast` (sử dụng LLVM Pass) để chèn các đoạn mã assembly nhỏ (**trampolines**) theo dõi vào đầu mỗi khối cơ bản (basic block - một đoạn mã không có lệnh rẽ nhánh). Công thức cập nhật trạng thái của AFL++ là:
 
 > Map[Current_Location⊕(Previous_Location>>1)]++
 
-Ví dụ:
+Ví dụ thực tế:
 
 ```
 cur_location = <COMPILE_TIME_RANDOM_FOR_THIS_CODE_BLOCK>;
@@ -462,49 +523,58 @@ shared_mem[cur_location ^ prev_location]++;
 prev_location = cur_location >> 1;
 ```
 
+Với:
+
+- `cur_location`: ID ngẫu nhiên của khối hiện tại.
+
+- `prev_location`: ID của khối trước đó.
+
+- `shared_mem`: Một bitmap 64KB nằm trong bộ nhớ chia sẻ. Phép XOR (^) tạo ra một định danh duy nhất cho cạnh (edge) nối giữa hai khối (từ A đến B). Phép dịch phải (>> 1) giúp phân biệt hướng đi (A->B khác với B->A).  Ví dụ nếu code chạy từ dòng 2 xuống dòng 6 -> Nó đánh dấu vào ô tọa độ (2, 6). 
+
 *Mỗi basic code block được AFL gán một giá trị ngẫu nhiên cố định tại thời điểm biên dịch (COMPILE_TIME_RANDOM_FOR_THIS_CODE_BLOCK) để xác định vị trí hiện tại (Current_Location).*
 
 ![alt text](image-16.png)
 
 *Nếu không có source (chỉ có file .exe): AFL dùng chế độ **QEMU mode** (chạy giả lập) để theo dõi, nhưng sẽ chậm hơn.*
 
-Nó lấy vị trí hiện tại và vị trí trước đó để tính ra một tọa độ duy nhất trên Bitmap. Nếu code chạy từ dòng 2 xuống dòng 6 -> Nó đánh dấu vào ô tọa độ (2, 6).
+Đó là cách AFL++ theo dõi chương trình  mục tiêu để tối ưu hóa độ bao phủ mã trong quá trình fuzzing. Việc tối ưu này được thực hiện thông qua Giải Thuật Di Truyền (Genetic Algorithm)
 
 
-Quy trình tìm kiếm "Interesting Input" (Input thú vị)
+#### Giải Thuật Di Truyền (Genetic Algorithm)
 
-Hãy tưởng tượng quy trình diễn ra như sau:
+![alt text](image-4.png)
 
-1. Input 1 (Gốc): Chuỗi "Hello".
+1. AFL++ quản lý một hàng đợi các đầu vào interesting inputs. Nó chọn một đầu vào từ hàng đợi, ưu tiên các đầu vào nhỏ và chạy nhanh, ví dụ chuỗi `Hello` -> Chương trình chạy: Dòng 1 -> 6 -> 9 -> 10 -> 15 (xem Fig 1) => AFL đánh dấu các ô tương ứng trên Bitmap.
 
-    - Chương trình chạy: Dòng 1 -> 6 -> 9 -> 10 -> 15.
+2. AFL tạo ra Input 2 (Mutation): Sửa đổi interesting input vừa rồi bằng cách:
 
-    - AFL đánh dấu các ô tương ứng trên Bitmap.
+    - **Deterministic Phase**: Thực hiện lần lượt các đột biến xác định như:
+        - Bit Flips: Lật từng bit trong đầu vào.
 
-2. AFL tạo ra Input 2 (Mutation): Sửa "Hello" thành "Hello\0".
+        - Integer Arithmetic: Cộng hoặc trừ các giá trị số nguyên nhỏ (ví dụ: 1,−1,INT_MAX,INT_MIN) vào các vị trí dữ liệu.
 
-    - Chương trình chạy đến dòng 5: JZ 7 (Jump If Zero). Do có ký tự \0, điều kiện thỏa mãn!
+        - Dictionary Insertion: Chèn các token hoặc chuỗi ký tự đã biết (được trích xuất từ chương trình hoặc do người dùng cung cấp) vào đầu vào.
+    
+    
+        Giai đoạn này đảm bảo không bỏ sót các lỗi biên đơn giản.  
 
-    - Chương trình nhảy sang Dòng 7: arraycopy(...).
+    - **Havoc Phase**: Nếu giai đoạn xác định không tìm thấy đường đi mới, AFL++ chuyển sang chế độ "hỗn loạn" (havoc), áp dụng hàng loạt đột biến ngẫu nhiên xếp chồng lên nhau.
 
-3. Phát hiện:
+    - **Splicing**: Cắt ghép hai đầu vào khác nhau trong hàng đợi để tạo ra "con lai", hy vọng kết hợp được các đặc tính tốt của cả hai.   
 
-    - AFL thấy một bước nhảy từ 5 -> 7.
+    - **MOpt**: AFL++ còn tích hợp MOpt, một trình đột biến dựa trên học máy (meta-heuristic mutator) để tối ưu hóa việc lựa chọn các đột biến.
 
-    - AFL tra vào Bitmap: "Ô đại diện cho bước nhảy 5->7 chưa từng được đánh dấu trước đây".
+    Ví dụ `Hello` thành `Hello\0`  -> Chương trình chạy đến dòng 5: JZ 7 (Jump If Zero). Do có ký tự \0, điều kiện thỏa mãn => Chương trình nhảy sang Dòng 7: arraycopy(...).
 
-    - Kết luận: Input 2 đã khám phá ra vùng đất mới (code mới).
+3. Phản hồi:  Sau khi chạy, nếu bitmap coverage hiển thị một cạnh mới hoặc số lần thực thi cạnh thay đổi đáng kể, đầu vào đó được coi là "fittest" và được thêm vào hàng đợi để tiếp tục đột biến. 
 
-4. Hành động: Lưu Input 2 lại vào hàng đợi (queue) để dùng làm hạt giống (seed) lai tạo ra các input tiếp theo. Các input tiếp theo được tạo mới theo Mutation Strategies (Chiến lược đột biến):
+    Ví dụ AFL thấy một bước nhảy từ 5 -> 7 => AFL tra vào Bitmap: "Ô đại diện cho bước nhảy 5->7 chưa từng được đánh dấu trước đây" => Input 2 đã khám phá ra vùng đất mới (code mới) => Lưu Input 2 lại vào hàng đợi để dùng làm hạt giống lai tạo ra các input tiếp theo. Các input tiếp theo được tạo mới theo Mutation Strategies như ở bước 2.
 
-- Lật bit (0 thành 1).
+4. Kết quả: AFL++ lặp lại quá trình này liên tục, chạy vô tận đến khi người dùng dừng lại. Nếu trong quá trình chạy, nếu chương trình crash (sự cố) hoặc treo (hangs), AFL++ sẽ lưu đầu vào đó lại như một ví dụ phản chứng (counterexample).
 
-- Tăng giảm số nguyên (thử các số biên như 0, -1, MAX_INT).
+#### Cách AFL++ tối ưu hiệu năng
 
-- Ghép nối các đoạn input lại với nhau
-
-
-Thêm nữa, để test các input, AFL không chạy lại chương trình từ đầu mỗi lần, mà nó sử dụng một kỹ thuật gọi là **fork server**. Quy tình đầy đủ của AFL là:
+Do cần test với số lượng các input,  AFL không chạy lại chương trình từ đầu mỗi lần cho mỗi input, mà nó sử dụng một kỹ thuật gọi là **fork server**. Quy tình đầy đủ của AFL là:
 
 1. AFL khởi động chương trình mục tiêu một lần duy nhất, vd như khởi chạy hàm `main()`, tạo ra một tiến trình cha (parent process). Bắt đầu với các seed inputs
 
@@ -515,3 +585,13 @@ Thêm nữa, để test các input, AFL không chạy lại chương trình từ
 4. Khi chạy, Thu thập thông tin bao phủ mã (CFG edges). Lưu lại nếu độ bao phủ tăng.
 
 5. Lặp lại
+
+Thêm nữa, trong môi trường C/C++, một chương trình có thể đọc **vượt quá giới hạn bộ đệm một vài byte** mà không gây ra crash ngay lập tức (do vùng nhớ lân cận chưa được sử dụng, do OS cấp phát thêm bộ nhớ một cách thụ động, ...), dẫn đến việc các lỗi này bị bỏ qua bởi các fuzzer thông thường. Để khắc phục, công nghệ Instrumentation (gắn mã theo dõi) được sử dụng, điển hình là AddressSanitizer (ASan).
+
+ASan hoạt động dựa trên hai cơ chế chính:
+
+- **Shadow Memory**: ASan dành riêng một vùng bộ nhớ ảo để theo dõi trạng thái của bộ nhớ ứng dụng. Tỷ lệ ánh xạ thường là 8:1, nghĩa là 8 byte bộ nhớ ứng dụng được mô tả bởi 1 byte shadow memory. Giá trị của byte shadow sẽ cho biết trạng thái của 8 byte kia (ví dụ: 0 là hợp lệ, các giá trị âm biểu thị vùng bị cấm như đã giải phóng, vùng đệm stack, v.v.).   
+
+- **Redzones (Vùng đỏ)**: Trình biên dịch chèn các vùng bộ nhớ bị "đầu độc" (poisoned) xung quanh các biến trên stack và heap. Nếu chương trình truy cập vào vùng redzone (tràn bộ đệm), ASan sẽ kiểm tra shadow memory, phát hiện giá trị bị cấm và dừng chương trình ngay lập tức với báo cáo chi tiết.  
+
+Việc sử dụng ASan là bắt buộc trong kế hoạch kiểm thử này để đảm bảo mọi vi phạm bộ nhớ đều được phát hiện bởi Radamsa và AFL++.
