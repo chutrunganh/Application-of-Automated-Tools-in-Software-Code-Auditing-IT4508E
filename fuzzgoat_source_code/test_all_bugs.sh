@@ -12,19 +12,19 @@ echo ""
 # Test 1: Object bug (already detected)
 echo "Test 1: Object bug (Invalid free - line 258)"
 echo "--------------------------------------------"
-esbmc test_esbmc_focused.c fuzzgoat.c --memory-leak-check --unwind 10 2>&1 | grep -E "VERIFICATION|Violated property|dereference failure" | head -3
+esbmc test_esbmc_focused.c fuzzgoat.c --memory-leak-check --unwind 10 2>&1 | grep -E "VERIFICATION|Violated property|dereference failure" | head -15
 echo ""
 
 # Test 2: Empty string bug
 echo "Test 2: Empty string bug (Invalid free - line 279)"
 echo "--------------------------------------------"
-esbmc test_string_empty.c fuzzgoat.c --memory-leak-check --unwind 5 2>&1 | grep -E "VERIFICATION|Violated property|dereference failure|forgotten memory" | head -3
+esbmc test_string_empty.c fuzzgoat.c --memory-leak-check --unwind 5 2>&1 | grep -E "VERIFICATION|Violated property|dereference failure|forgotten memory" | head -15 
 echo ""
 
 # Test 3: One-byte string bug
 echo "Test 3: One-byte string bug (NULL pointer - line 298)"
 echo "--------------------------------------------"
-esbmc test_string_one.c fuzzgoat.c --memory-leak-check --unwind 5 2>&1 | grep -E "VERIFICATION|Violated property|dereference failure|NULL pointer" | head -3
+esbmc test_string_one.c fuzzgoat.c --memory-leak-check --unwind 5 2>&1 | grep -E "VERIFICATION|Violated property|dereference failure|NULL pointer" | head -15
 echo ""
 
 echo "=========================================="

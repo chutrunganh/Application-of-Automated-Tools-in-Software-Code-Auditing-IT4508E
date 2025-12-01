@@ -12,13 +12,13 @@
 
 Kiểm thử phần mềm là cố gắng tìm ra các lỗi/chứng minh không tồn tại lỗi để đảm bảo phần mềm hoạt động an toàn, đáng tin cậy. Để đảm báo phần mềm được kiểm thử đầy đủ, người ta thường dựa vào các tiêu chí như:
 
-- **Statement** coverage (cấp độ câu lệnh): Kiểm tra xem mỗi câu lệnh trong chương trình được chạy ít nhất một lần, tức với đoạn code trên chỉ cần đảm bảo chạy được câu lệnh if và câu lệnh gán y = z là được, trường hợp x <= 0 không cần xét tới.
+- **Statement coverage** (cấp độ câu lệnh): Kiểm tra xem mỗi câu lệnh trong chương trình được chạy ít nhất một lần, ví dụ với `if (x > 0) { y = z; }`  chỉ cần đảm bảo chạy được câu lệnh `if` và câu lệnh gán `y = z` là được, trường hợp  `x <= 0` không cần xét tới.
 
-- **Branch** coverage (cấp độ nhánh): Kiểm tra xem mỗi nhánh của các câu lệnh điều khiển (if, switch, loop) được chạy ít nhất một lần, tức với đoạn code trên cần xét cả hai trường hợp x > 0 và x <= 0 để đảm bảo cả hai nhánh của câu lệnh if đều được thực thi.
+- **Branch coverage** (cấp độ nhánh): Kiểm tra xem mỗi nhánh của các câu lệnh điều khiển (if, switch, loop) được chạy ít nhất một lần, ví dụ với `if (x > 0) { y = z; }` cần xét cả hai trường hợp `x > 0` và `x <= 0` để đảm bảo cả hai nhánh của câu lệnh if đều được thực thi.
 
-- **Path** coverage (cấp độ đường đi): Kiểm tra xem tất cả các đường đi có thể có trong chương trình được chạy ít nhất một lần, tức với đoạn code trên cần xét tất cả các tổ hợp có thể của các câu lệnh điều khiển trong chương trình để đảm bảo mọi đường đi đều được thực thi.
+- **Path coverage** (cấp độ đường đi): Kiểm tra xem tất cả các đường đi có thể có trong chương trình được chạy ít nhất một lần, tức với đoạn code trên cần xét tất cả các tổ hợp có thể của các câu lệnh điều khiển trong chương trình để đảm bảo mọi đường đi đều được thực thi.
 
-- **Data** coverage (cấp độ dữ liệu): Theo dõi giá trị của các biến trong suốt chương trình. Không chỉ quan tâm đi đường nào (path constraints) mà còn quan tâm giá trị biến thay đổi ra sao
+- **Data coverage** (cấp độ dữ liệu): Theo dõi giá trị của các biến trong suốt chương trình. Không chỉ quan tâm đi đường nào (path constraints) mà còn quan tâm giá trị biến thay đổi ra sao
 
 
 Có hai phương pháp kiểm thử chính:

@@ -109,7 +109,12 @@ int main() {
                 }
                 value->u.string.ptr[str_len] = '\0';
             } else {
-                value->u.string.ptr = NULL;
+                // Với empty string, vẫn cần cấp phát để trigger bug
+                // Bug xảy ra khi ptr được decrement trước khi free
+                value->u.string.ptr = (json_char *)malloc(1);
+                if (value->u.string.ptr) {
+                    value->u.string.ptr[0] = '\0';
+                }
             }
             break;
         }
