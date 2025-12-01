@@ -262,6 +262,16 @@ Như vậy công thức toán được tạo ra khi này khi đưa vào SMT solv
 
 Thêm flag `--k-induction` để bật tính năng này trong ESBMC.
 
+
+Tuy nhiên việc dùng tính năng `--k-induction` này sẽ làm tăng đáng kể thời gian chạy của ESBMC và tiêu tốn rất nhiều tài nguyên. Có môt tùy chọn khác có thể sử dụng để đạt chứng minh gần tương đương là `--incremental-bmc`. 
+
+Cụ thể: ESBMC sẽ bắt đầu kiểm tra chương trình với số bước lặp (loop unwind) nhỏ (ví dụ k=1). Nếu không tìm thấy lỗi, nó tự động tăng k lên (k=2, k=3,...) và kiểm tra tiếp tới khi phát hiện lỗi thì thôi.
+
+- Ưu điệm: Nó cực kỳ hiệu quả để tìm ra các lỗi xảy ra sớm (shallow bugs) mà không tốn tài nguyên để tính toán các trường hợp quá sâu ngay từ đầu.
+
+- Nhược điểm: Nếu chương trình không có lỗi và vòng lặp là vô hạn, nó có thể chạy mãi mãi (hoặc đến khi hết RAM/thời gian) mà không bao giờ kết luận được là chương trình tuyệt đối đúng.
+
+
 ### Quá trình hoạt động của ESBMC
 
 Đó là về khía cạnh lý thuyết, về mặt implementation, ESBMC hoạt động theo các giai đoạn sau:
@@ -607,79 +617,3 @@ Việc sử dụng ASan là bắt buộc trong kế hoạch kiểm thử này đ
 ![alt text](image-5.png)
 
 .....
-
-
-
-
-
--------------
-
-
-Đây là một câu hỏi rất hay về mặt kỹ thuật của Model Checking. Sự khác biệt giữa hai cờ này nằm ở mục đích (tìm lỗi vs. chứng minh đúng đắn) và chiến thuật giải quyết bài toán.
-
-Mình sẽ giải thích một cách dễ hiểu nhất thông qua ví dụ:
-
-1. --incremental-bmc (Kiểm tra tăng dần)
-
-Chiến thuật: "Dò từng bước một, đi đến đâu chắc đến đó."
-
-    Cách hoạt động: ESBMC sẽ bắt đầu kiểm tra chương trình với số bước lặp (loop unwind) nhỏ (ví dụ k=1). Nếu không tìm thấy lỗi, nó tự động tăng k lên (k=2, k=3,...) và kiểm tra tiếp.
-
-    Tư duy: Nó giống như việc bạn đi vào một hang động tối. Bạn đi 1 bước, soi đèn xem có hố không. Không có thì đi bước thứ 2, soi đèn tiếp. Cứ thế đi sâu dần.
-
-    Mục đích chính: Tìm lỗi (Bug finding). Nó cực kỳ hiệu quả để tìm ra các lỗi xảy ra sớm (shallow bugs) mà không tốn tài nguyên để tính toán các trường hợp quá sâu ngay từ đầu.
-
-    Nhược điểm: Nếu chương trình không có lỗi và vòng lặp là vô hạn, nó có thể chạy mãi mãi (hoặc đến khi hết RAM/thời gian) mà không bao giờ kết luận được là chương trình "tuyệt đối đúng".
-
-2. --k-induction (Quy nạp k-bước)
-
-Chiến thuật: "Dùng toán học để chứng minh tổng quát."
-
-    Cách hoạt động: Nó dựa trên nguyên lý quy nạp toán học. ESBMC sẽ cố gắng chứng minh 2 điều:
-
-        Cơ sở (Base case): Chương trình chạy đúng trong k bước đầu tiên.
-
-        Bước quy nạp (Inductive step): Giả sử chương trình chạy đúng trong n bước bất kỳ, liệu bước thứ n+1 có chắc chắn đúng không?
-
-    Tư duy: Giống như xếp domino.
-
-        Bạn chứng minh quân đầu tiên đổ (Base case).
-
-        Bạn chứng minh rằng "nếu quân trước đổ thì quân sau chắc chắn đổ" (Step). -> Kết luận: Toàn bộ hàng domino sẽ đổ mà không cần đi kiểm tra từng quân một.
-
-    Mục đích chính: Chứng minh đúng đắn (Verification/Proof). Nếu k-induction thành công, ESBMC có thể dõng dạc tuyên bố: "Chương trình này 100% không có lỗi, dù chạy bao nhiêu lâu đi nữa."
-
-    Nhược điểm: Việc chứng minh "bước quy nạp" rất khó và tốn tài nguyên máy tính. Với các thuật toán phức tạp (như parser JSON của bạn), ESBMC thường bị "bí" (inconclusive) hoặc báo lỗi giả (false positive) vì nó phải giả định quá nhiều trạng thái.
-
-Bảng so sánh nhanh
-
-Đặc điểm	--incremental-bmc	--k-induction
-Mục tiêu	Tìm lỗi (Crash, leak, buffer overflow).	Chứng minh chương trình an toàn tuyệt đối.
-Thích hợp cho	Code lớn, phức tạp, loops nhiều.	Code thuật toán nhỏ, logic chặt chẽ.
-Kết quả	Thường tìm ra lỗi nhanh nếu lỗi nằm ở đầu.	Có thể chứng minh đúng hoàn toàn (Proof).
-Rủi ro	Có thể chạy mãi không dừng nếu không tìm thấy lỗi.	Dễ bị "Unknown" hoặc tốn rất nhiều RAM/CPU.
-
-Áp dụng vào Project fuzzgoat của bạn
-
-Trong trường hợp của bạn là tìm lỗ hổng trong Fuzzgoat (một thư viện JSON Parser bị cố tình làm lỗi):
-
-    Nên dùng --incremental-bmc (hoặc chỉ định --unwind cố định):
-
-        Vì mục tiêu của bạn là TÌM LỖI (exploit).
-
-        Các lỗi trong Fuzzgoat thường nằm ở việc xử lý sai các chuỗi đặc biệt (như ví dụ [], {"":0}). Những lỗi này thường lộ ra ngay sau vài vòng lặp xử lý chuỗi.
-
-        Incremental BMC sẽ giúp bạn tìm ra "đường đi ngắn nhất" dẫn đến lỗi đó.
-
-    Tại sao --k-induction có thể không tốt ở đây?
-
-        Parser JSON có cấu trúc vòng lặp rất phức tạp (lặp qua từng ký tự, rồi lặp lồng nhau để parse object/array).
-
-        Dùng k-induction để chứng minh một cái parser bị lỗi là "đúng" (hoặc tìm lỗi bằng quy nạp) là việc "dùng dao mổ trâu để giết gà". Nó sẽ làm máy tính của bạn quá tải trước khi tìm ra lỗi đơn giản.
-
-Lời khuyên: Bạn hãy dùng câu lệnh sau (dùng chiến thuật Incremental nhưng giới hạn để tránh treo máy):
-Bash
-
-esbmc fuzzgoat.c main_for_esbmc.c --incremental-bmc --max-unwind 10 --memory-leak-check --overflow-check
-
-Lệnh này sẽ tự động thử unwind 1, 2... cho đến tối đa 10. Rất phù hợp để bắt lỗi Fuzzgoat.

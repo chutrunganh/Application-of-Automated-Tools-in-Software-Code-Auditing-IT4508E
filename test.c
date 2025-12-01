@@ -1,11 +1,12 @@
 #include <assert.h>
 
+int divide(int a, int b) {
+    // Tiềm ẩn lỗi chia cho 0
+    return a / b;
+}
+
 int main() {
-    int x = 5;
-    if (x > 0) {
-        x = x + 1;
-    }
-    // Chúng ta mong muốn x phải bằng 10 (thực tế code trên x = 6, nên sẽ có lỗi)
-    assert(x == 10); 
-    return 0;
+    int a = nondet_int();  // ← CHỈ ĐỊNH: a là symbolic
+    int b = nondet_int();   // ← CHỈ ĐỊNH: b là symbolic
+    int result = divide(a, b);
 }

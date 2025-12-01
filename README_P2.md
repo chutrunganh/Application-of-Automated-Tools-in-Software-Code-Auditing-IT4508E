@@ -164,6 +164,117 @@ if (value->u.string.length == 1) {
 
 # Kiểm tra bằng ESBMC
 
+Không thể chạy trực tiếp ESBMC trên `fuzzgoat.c` do file này không có hàm `main()` và không biết đâu là input cần kiểm thử. (ESSBMC khám phá tất cả paths từ symbolic inputs chứ nó không thể tự dộng nhận biết đâu là một input, đâu là hàm cần test) -> Cần tạo một file harness để hướng dẫn ESBMC. 
+
+Với các file yêu cầu đầu vào, chỉ định trong ESBMC như sau:
+
+```c
+int main() {
+    int a = nondet_int();  // ← CHỈ ĐỊNH: a là symbolic
+    int b = nondet_int();   // ← CHỈ ĐỊNH: b là symbolic
+    int result = divide(a, b);
+}
+```
+
+Output:
+
+```
+[Counterexample]
+
+
+State 1 file test.c line 10 column 5 function main thread 0
+----------------------------------------------------
+  b = 0 (00000000 00000000 00000000 00000000)
+
+State 2 file test.c line 5 column 5 function divide thread 0
+----------------------------------------------------
+Violated property:
+  file test.c line 5 column 5 function divide
+  division by zero
+  b != 0
+
+
+VERIFICATION FAILED
+```
+
+Áp dụng cho file `fuzzgoat.c`, cần tạo một test harness tương tự để chỉ định hàm cần kiểm thử và các tham số đầu vào nào là symbolic.
+
+- Với hàm cần kiểm thử, do biết trước các lỗi chỉ nằm trong hàm `son_value * json_parse(...) { ... }` (Lỗi 1) và `void json_value_free_ex(...) { ... }` (Lỗi 2,3,4), ta có thể tạo hai test harness riêng biệt để kiểm thử từng hàm một.
+
+- Với cấu trúc đầu vào thì sẽ phức tạp hơn trong ví dụ trên vì `json_value` là một cấu trúc phức tạp.
+
+DỰa trên source code trong `fuzzgoat.h`, ta có cấu trúc của object này là:
+
+```c
+typedef struct _json_value {
+    struct _json_value *parent;
+    json_type type;  // Loại: json_array, json_object, json_string, ...
+    
+    union {
+        // Nếu type = json_array
+        struct {
+            unsigned int length;
+            struct _json_value **values;  // Mảng các phần tử
+        } array;
+        
+        // Nếu type = json_object
+        struct {
+            unsigned int length;
+            json_object_entry *values;  // Mảng các cặp key-value
+        } object;
+        
+        // Nếu type = json_string
+        struct {
+            unsigned int length;
+            char *ptr;  // Con trỏ đến chuỗi
+        } string;
+        
+        // ... các loại khác
+    } u;
+} json_value;
+```
+
+Đây là một **union** - chỉ một trong các trường (array, object, string) được sử dụng tùy theo `type`.
+
+Từ `fuzzgoat.h`, `json_type` là một enum với 8 giá trị:
+
+```c
+typedef enum {
+   json_none,      // = 0
+   json_object,    // = 1
+   json_array,     // = 2
+   json_integer,   // = 3
+   json_double,    // = 4
+   json_string,    // = 5
+   json_boolean,   // = 6
+   json_null       // = 7
+} json_type;
+```
+
+Như vậy ta sẽ chỉ định đầu vào sympolic với:
+
+```c
+int type_choice = nondet_int();
+__ESBMC_assume(type_choice >= 0 && type_choice <= 7); 
+
+// Sau đó gán giá trị symbolic vào trường type của cấu trúc
+// -> Cấu trúc json_value bây giờ có type là symbolic.
+value->type = (json_type)type_choice;
+
+
+// Đến đây, ESBMC chỉ biết: "type_choice có thể là 0-7"
+// NHƯNG chưa làm gì với type_choice cả. Ta cần chỉ định nơi ESBMC khám phá các paths tương ứng với type_choice
+switch (value->type) {
+    case json_array: { ... }      // Path 1
+    case json_object: { ... }     // Path 2
+    case json_string: { ... }     // Path 3
+    case json_integer: { ... }    // Path 4
+    // ... (tổng cộng 8 paths)
+}
+```
+
+
+
 
 # Kiểm tra bằng AFL++
 

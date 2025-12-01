@@ -91,50 +91,236 @@ esbmc test_harness.c fuzzgoat.c
 
 ## 4. VÍ DỤ CỤ THỂ VỚI FUZZGOAT
 
-### 4.1. Test Harness chúng ta đã tạo
+### 4.1. Cấu trúc json_value là gì?
+
+Trước khi hiểu test harness, cần biết cấu trúc `json_value`:
+
+```c
+typedef struct _json_value {
+    struct _json_value *parent;
+    json_type type;  // Loại: json_array, json_object, json_string, ...
+    
+    union {
+        // Nếu type = json_array
+        struct {
+            unsigned int length;
+            struct _json_value **values;  // Mảng các phần tử
+        } array;
+        
+        // Nếu type = json_object
+        struct {
+            unsigned int length;
+            json_object_entry *values;  // Mảng các cặp key-value
+        } object;
+        
+        // Nếu type = json_string
+        struct {
+            unsigned int length;
+            char *ptr;  // Con trỏ đến chuỗi
+        } string;
+        
+        // ... các loại khác
+    } u;
+} json_value;
+```
+
+**Quan trọng**: Đây là một **union** - chỉ một trong các trường (array, object, string) được sử dụng tùy theo `type`.
+
+### 4.2. Test Harness thực tế - Từng bước chi tiết
+
+Đây là code thực tế trong `test_esbmc_focused.c`:
+
+#### Bước 1: Cấp phát bộ nhớ cho json_value
 
 ```c
 int main() {
-    // 1. Tạo json_value với type SYMBOLIC
-    int type_choice = nondet_int();  // ← ĐÂY! Chỉ định "type là symbolic"
-    __ESBMC_assume(type_choice >= 0 && type_choice <= 7);
+    // Tạo settings cho memory allocation
+    json_settings settings = { 0 };
+    settings.mem_alloc = wrapper_alloc;  // Hàm cấp phát bộ nhớ
+    settings.mem_free = wrapper_free;    // Hàm giải phóng bộ nhớ
     
-    value->type = (json_type)type_choice;
+    // Cấp phát bộ nhớ cho một json_value
+    // Đây là cấp phát THỰC SỰ, không phải symbolic
+    json_value *value = (json_value *)malloc(sizeof(json_value));
+    if (!value) {
+        return 1;  // Nếu không cấp phát được thì thoát
+    }
+```
+
+**Giải thích**: 
+- `malloc(sizeof(json_value))` → Cấp phát bộ nhớ thực sự cho một cấu trúc `json_value`
+- Kích thước: khoảng vài chục bytes (tùy theo kiến trúc)
+- Con trỏ `value` trỏ đến vùng nhớ này
+
+#### Bước 2: Tạo type SYMBOLIC
+
+```c
+    // Tạo type SYMBOLIC - ESBMC sẽ khám phá TẤT CẢ các giá trị có thể
+    int type_choice = nondet_int();  // ← ĐÂY! Tạo biến symbolic
+    __ESBMC_assume(type_choice >= 0 && type_choice <= 7);  // Giới hạn: 0-7
     
-    // 2. Tạo length SYMBOLIC
-    unsigned int arr_len = nondet_int();  // ← ĐÂY! Chỉ định "length là symbolic"
-    __ESBMC_assume(arr_len <= 5);
-    value->u.array.length = arr_len;
+    value->type = (json_type)type_choice;  // Gán type symbolic vào cấu trúc
+    value->parent = NULL;  // Không có parent (là root)
+```
+
+**Giải thích**:
+- `nondet_int()` → ESBMC tạo một biến **symbolic** (không phải giá trị cụ thể)
+- `__ESBMC_assume(...)` → Giới hạn phạm vi: type chỉ có thể là 0, 1, 2, ..., 7
+- `value->type = (json_type)type_choice` → Gán type symbolic vào cấu trúc
+
+**ESBMC hiểu**: "type có thể là bất kỳ giá trị nào từ 0 đến 7, tôi sẽ khám phá tất cả!"
+
+#### Bước 3: Khởi tạo cấu trúc theo từng type
+
+```c
+    // Dựa vào type, khởi tạo các trường tương ứng
+    switch (value->type) {
+        case json_array: {
+            // Nếu type là array, khởi tạo trường array
+            unsigned int arr_len = nondet_int();  // ← Length cũng là symbolic!
+            __ESBMC_assume(arr_len <= 5);  // Giới hạn: 0-5
+            
+            value->u.array.length = arr_len;  // Gán length symbolic
+            
+            if (arr_len > 0) {
+                // Nếu length > 0, cấp phát mảng các con trỏ
+                value->u.array.values = (json_value **)malloc(
+                    arr_len * sizeof(json_value *)
+                );
+                // Khởi tạo tất cả con trỏ = NULL
+                for (int i = 0; i < arr_len; i++) {
+                    value->u.array.values[i] = NULL;
+                }
+            } else {
+                // Nếu length = 0, không cấp phát
+                value->u.array.values = NULL;
+            }
+            break;
+        }
+        
+        case json_object: {
+            // Tương tự cho object
+            unsigned int obj_len = nondet_int();
+            __ESBMC_assume(obj_len <= 5);
+            value->u.object.length = obj_len;
+            // ... cấp phát và khởi tạo
+            break;
+        }
+        
+        case json_string: {
+            // Tương tự cho string
+            unsigned int str_len = nondet_int();
+            __ESBMC_assume(str_len <= 5);
+            value->u.string.length = str_len;
+            // ... cấp phát và khởi tạo
+            break;
+        }
+    }
+```
+
+**Giải thích chi tiết**:
+
+1. **Switch case dựa trên type symbolic**:
+   - ESBMC sẽ khám phá TẤT CẢ các nhánh: `json_array`, `json_object`, `json_string`, ...
+   - Mỗi nhánh tạo một cấu trúc khác nhau
+
+2. **Với mỗi type, tạo length symbolic**:
+   - `arr_len = nondet_int()` → Length cũng là symbolic
+   - `__ESBMC_assume(arr_len <= 5)` → Giới hạn để tránh vòng lặp quá dài
+
+3. **Cấp phát bộ nhớ thực sự**:
+   - `malloc(arr_len * sizeof(json_value *))` → Cấp phát mảng thực sự
+   - Nhưng `arr_len` là symbolic → ESBMC sẽ khám phá các trường hợp: length=0, 1, 2, 3, 4, 5
+
+4. **Khởi tạo dữ liệu**:
+   - Với array: Khởi tạo tất cả con trỏ = NULL
+   - Với string: Khởi tạo chuỗi với ký tự 'A'
+
+#### Bước 4: Gọi hàm cần test
+
+```c
+    // Gọi hàm json_value_free_ex với cấu trúc đã tạo
+    // ESBMC sẽ tự động kiểm tra TẤT CẢ các paths trong hàm này
+    json_value_free_ex(&settings, value);
     
-    // 3. Gọi hàm cần test
-    json_value_free_ex(&settings, value);  // ← ESBMC test hàm này
+    return 0;
 }
 ```
 
-### 4.2. ESBMC làm gì với test harness này?
+### 4.3. ESBMC làm gì với test harness này?
 
-1. **Nhận diện symbolic values:**
-   - `type_choice = nondet_int()` → ESBMC: "OK, type có thể là 0, 1, 2, ..., 7"
-   - `arr_len = nondet_int()` → ESBMC: "OK, length có thể là 0, 1, 2, ..., 5"
+#### Bước 1: Phân tích symbolic values
 
-2. **Khám phá tất cả paths:**
-   ```
-   type = 0 (json_none)     → Test path 1
-   type = 1 (json_object)   → Test path 2
-   type = 2 (json_array)    → Test path 3
-   ...
-   ```
+ESBMC nhận diện:
+- `type_choice` là symbolic, có thể là: 0, 1, 2, 3, 4, 5, 6, 7
+- `arr_len` là symbolic, có thể là: 0, 1, 2, 3, 4, 5
+- `obj_len` là symbolic, có thể là: 0, 1, 2, 3, 4, 5
+- `str_len` là symbolic, có thể là: 0, 1, 2, 3, 4, 5
 
-3. **Với mỗi path, khám phá sub-paths:**
-   ```
-   type = 2, length = 0 → Test empty array
-   type = 2, length = 1 → Test array with 1 element
-   type = 2, length = 2 → Test array with 2 elements
-   ...
-   ```
+#### Bước 2: Khám phá tất cả paths
 
-4. **Phát hiện lỗi:**
-   - Khi `type = 1, length = 4` → Phát hiện array bounds violation tại dòng 258!
+ESBMC tạo một cây quyết định:
+
+```
+type = 0 (json_none)
+  → Không có gì đặc biệt
+  → Test path 1
+
+type = 1 (json_object)
+  → obj_len = 0 → Test empty object
+  → obj_len = 1 → Test object with 1 entry
+  → obj_len = 2 → Test object with 2 entries
+  → ...
+  → obj_len = 4 → Test object with 4 entries → PHÁT HIỆN LỖI! (dòng 258)
+
+type = 2 (json_array)
+  → arr_len = 0 → Test empty array
+  → arr_len = 1 → Test array with 1 element
+  → ...
+
+type = 5 (json_string)
+  → str_len = 0 → Test empty string → PHÁT HIỆN LỖI! (dòng 279)
+  → str_len = 1 → Test one-byte string → PHÁT HIỆN LỖI! (dòng 298)
+  → str_len = 2 → Test two-byte string
+  → ...
+```
+
+#### Bước 3: Với mỗi path, kiểm tra lỗi
+
+Khi ESBMC khám phá path `type=1, obj_len=4`:
+1. Tạo cấu trúc: `value->type = json_object`, `value->u.object.length = 4`
+2. Cấp phát mảng: `value->u.object.values = malloc(4 * sizeof(...))`
+3. Gọi `json_value_free_ex(&settings, value)`
+4. Trong hàm `json_value_free_ex`, tại dòng 258:
+   ```c
+   value = value->u.object.values [value->u.object.length--].value;
+   ```
+5. ESBMC phát hiện: `length--` được thực hiện TRƯỚC khi truy cập array
+6. Khi `length=4`, code cố truy cập `values[4]` nhưng mảng chỉ có 0-3
+7. → **PHÁT HIỆN LỖI**: `dereference failure: array bounds violated`
+
+### 4.4. Tại sao cần tạo cấu trúc như vậy?
+
+**Câu hỏi**: "Tại sao không chỉ gọi `json_value_free_ex(NULL)`?"
+
+**Trả lời**:
+1. **Hàm cần cấu trúc hợp lệ**: `json_value_free_ex` cần một con trỏ đến cấu trúc `json_value` hợp lệ
+2. **Cần khởi tạo đúng**: Mỗi type cần cấu trúc khác nhau (array cần mảng, string cần chuỗi)
+3. **Cần cấp phát bộ nhớ**: Các con trỏ trong cấu trúc cần trỏ đến vùng nhớ hợp lệ
+4. **ESBMC cần symbolic values**: Để khám phá tất cả các trường hợp có thể
+
+**Ví dụ minh họa**:
+
+```c
+// ❌ SAI: Không có cấu trúc
+json_value_free_ex(&settings, NULL);  // Sẽ crash hoặc không test được gì
+
+// ✅ ĐÚNG: Có cấu trúc nhưng type và length là symbolic
+json_value *value = malloc(sizeof(json_value));
+value->type = nondet_int();  // Symbolic!
+value->u.array.length = nondet_int();  // Symbolic!
+json_value_free_ex(&settings, value);  // ESBMC khám phá tất cả!
+```
 
 ## 5. TẠI SAO KHÔNG TỰ ĐỘNG?
 
