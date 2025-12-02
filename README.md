@@ -7,6 +7,8 @@
 - Tìm hiểu sơ lược về lý thuyết kiểm thử phần mềm
 - Tìm hiểu cách hoạt động và sử dụng công cụ kiểm thử phần mềm **ESBMC**, **AFL++**, **ASan**. Đối tượng phần mềm được kiểm thử là chương trình C:  [**fuzzgoat**](https://github.com/fuzzstati0n/fuzzgoat)
 
+- Phần lý thuyết được trình bày trong file này, còn phần sử dụng các tools được trình bày trong [README_P2](./README_P2.md)
+
 
 # 1. Kiểm thử phần mềm là gì
 
@@ -27,7 +29,7 @@ Có hai phương pháp kiểm thử chính:
 | Tính chất      | Static Analysis (Phân tích Tĩnh)                                   | Dynamic Analysis (Phân tích Động)                         |
 |---------------|---------------------------------------------------------------------|-----------------------------------------------------------|
 | Cách làm      |  Đánh giá mã nguồn, mã bytecode hoặc mã nhị phân của ứng dụng mà không cần thực thi chương trình. Phương pháp này dựa trên việc xây dựng các mô hình trừu tượng của mã nguồn, chẳng hạn như Cây Cú pháp Trừu tượng (Abstract Syntax Tree - AST) hoặc Đồ thị Luồng Điều khiển (Control Flow Graph - CFG), để tìm kiếm các mẫu mã không an toàn hoặc các vi phạm về logic.  |Các công cụ thực thi chương trình, gửi các đầu vào và quan sát hành vi phản hồi của hệ thống |
-| Độ bao phủ    | Có thể bao phủ tất cả các đường đi và đầu vào có thể có      | Chỉ kiểm tra được các đường đi mà bộ test kích hoạt       |
+| Độ bao phủ    | Có thể bao phủ tất cả các đường đi và đầu vào có thể có (100% code coverage về mặt lý thuyết)      | Chỉ kiểm tra được các đường đi mà bộ test kích hoạt       |
 | Chứng minh    | Có thể chứng minh không bao giờ xảy ra loại lỗi này bằng cách chứng minh tính đúng dắn của phương trình biến đổi toán học | Không thể chứng minh không thể xảy ra loại lỗi này, chỉ có thể chứng minh phản chứng bằng sự hiện diện của lỗi |
 | Kết quả       | Có thể có False Positives (Báo động giả) do báo lỗi ở chỗ thực ra không có lỗi | Không có False Positives, nếu nó báo lỗi (ví dụ: crash) thì đó 100% là lỗi thật |
 
@@ -103,9 +105,9 @@ flowchart TD
     H --> H2[Binary Instrumentation Pin, DynamoRIO]
 ````
 
-- **Instrumentation & Profiling**: Chèn code hoặc dùng công cụ runtime để thu thập thông tin hiệu năng (CPU, thời gian, sử dụng bộ nhớ), giúp hiểu điểm nghẽn (bottleneck) và tối ưu hóa phần mềm.
+- **Instrumentation & Profiling**: Chèn code hoặc dùng công cụ runtime để thu thập thông tin hiệu năng (CPU, thời gian, sử dụng bộ nhớ), giúp hiểu điểm nghẽn và tối ưu hóa chương trình.
 
-- **Sanitizers (Runtime Sanity Checks)**: Công cụ như AddressSanitizer (ASan), UndefinedBehaviorSanitizer (UBSan) chèn kiểm tra thời gian chạy để phát hiện lỗi bộ nhớ (overflow, dùng sau khi free, uninitialized) hoặc hành vi không xác định.
+- **Sanitizers (Runtime Sanity Checks)**: Công cụ như AddressSanitizer (ASan), UndefinedBehaviorSanitizer (UBSan) chèn kiểm tra thời gian chạy để phát hiện lỗi bộ nhớ tiềm ẩn mà có thể không gây crash chương trình ngay (overflow, dùng sau khi free, uninitialized) hoặc hành vi không xác định.
 
 - **Dynamic Taint / Information Flow Tracking**: Gắn các “nhãn” (taint) cho dữ liệu đầu vào hoặc biến, theo dõi cách dữ liệu này lan truyền qua chương trình lúc chạy để phát hiện rò rỉ, injection hoặc lỗ hổng bảo mật.
 
@@ -500,6 +502,12 @@ Nếu không có lỗi (đổi `assert(x == 10)` thành `assert(x == 6)`), outpu
 VERIFICATION SUCCESSFUL
 ```
 
+> [!TIP]
+> Ngoài ra, ESBMC còn có khả năng tự động sửa mã nguồn dựa vào các lỗi đã dò tìm được bằng cách sử dụng thêm công cụ [**ESBMC-AI**](https://github.com/esbmc/esbmc-ai). Đây là một công cụ bổ sung cho ESBMC, sử dụng các kỹ thuật LLM để tự động đọc các Counter Example trong trường hợp VERIFICATION FAILED do ESBMC tạo ra và từ đó sửa lỗi cho mã nguồn gốc.
+
+![alt text](image-8.png)
+
+
 ## 2.2 AFL++
 
 ![alt text](image-2.png)
@@ -602,18 +610,100 @@ Do cần test với số lượng các input,  AFL không chạy lại chương 
 
 5. Lặp lại
 
-Thêm nữa, trong môi trường C/C++, một chương trình có thể đọc **vượt quá giới hạn bộ đệm một vài byte** mà không gây ra crash ngay lập tức (do vùng nhớ lân cận chưa được sử dụng, do OS cấp phát thêm bộ nhớ một cách thụ động, ...), dẫn đến việc các lỗi này bị bỏ qua bởi các fuzzer thông thường. Để khắc phục, công nghệ Instrumentation (gắn mã theo dõi) được sử dụng, điển hình là AddressSanitizer (ASan).
+AFL++ cũng hỗ trợ chạy song song trên nhiều CPU core để tăng tốc độ fuzzing. Mỗi instance AFL++ sẽ chạy độc lập trên một core, chia sẻ cùng một thư mục đầu vào/đầu ra để phối hợp khám phá các đầu vào mới.
+
+```bash
+// Bắt đầu một instance chính (master -M)
+afl-fuzz -i ./in_seeds -o ./out -M main0 -- ./target_binary @@
+
+// Bắt đầu các instance phụ (secondary -S)
+./afl-fuzz -i ./in_seeds -o ./out -S secondary1 -- ./target_binary @@
+./afl-fuzz -i ./in_seeds -o ./out -S secondary2 -- ./target_binary @@
+```
+
+Main instance có nhiệm vụ làm deterministic checks. Secondary sẽ chỉ làm mutation ngẫu nhiên, không làm deterministic trimming như main. Chúng cũng sẽ đồng bộ testcases mới từ sync dir (từ các instance khác) định kỳ.
+
+## 2.3 HongFuzz
+
+![alt text](image-11.png)
+
+**HongFuzz** là một công cụ fuzzing hiện đại, có cơ chế hoạt động tương tự như AFL++, nhưng cải tiến nhằm tăng hiệu suất và khả năng phát hiện lỗi. Dưới đây là một số điểm nổi bật về cách hoạt động của HongFuzz:
+
+### Khác biệt trong quản lý tiến trình
+
+- AFL++ sử dụng cơ chế **forkserver**. Tiến trình cha khởi tạo ứng dụng đích cho đến điểm main(), sau đó tạm dừng. Với mỗi lần chạy thử, nó sử dụng lệnh gọi hệ thống fork() để tạo ra một bản sao của tiến trình. Cơ chế copy-on-write (COW) của hệ điều hành giúp giảm thiểu chi phí so với việc khởi động lại từ đầu, nhưng fork() vẫn tốn kém tài nguyên kernel và việc quản lý bộ nhớ chia sẻ giữa hàng nghìn tiến trình con trong chế độ song song là một thách thức về khả năng mở rộng. AFL++ dù vẫn hỗ trợ thực thì song song nhưng sẽ cần tạo các instance thủ công.
+
+- Honggfuzz có khả năng hoạt động ở chế độ **đa luồng** thực thụ, nơi các luồng của fuzzer và mã nguồn đích cùng tồn tại trong một không gian địa chỉ. Điều này loại bỏ hoàn toàn chi phí chuyển ngữ cảnh và tạo tiến trình mới trong một số chế độ hoạt động. Quan trọng hơn, kho dữ liệu mẫu (corpus) được chia sẻ tức thời giữa các luồng mà không cần cơ chế đồng bộ hóa phức tạp hay khóa tệp tin như cách AFL++ phải thực hiện khi chạy nhiều instance song song.
+
+### Khác biệt trong cơ chế theo dõi độ bao phủ mã
+
+
+Trong khi AFL++ dựa vào việc theo dõi bằng phần mềm (chèn mã theo dõi vào mã nguồn hoặc mã máy để ghi lại các nhánh được thực thi), Honggfuzz cung cấp nhiều chế độ thu thập vùng phủ mã khác nhau, bao gồm cả việc sử dụng các tính năng **phần cứng** của CPU để tối ưu hiệu suất, cụ thể là **Intel Processor Trace (PT)** và **Branch Trace Store (BTS)**.
+
+- **Intel PT** là một tính năng phần cứng cho phép ghi lại luồng thực thi của phần mềm với chi phí hiệu năng cực thấp. Honggfuzz sử dụng Intel PT để tái dựng lại đường dẫn thực thi của một tệp nhị phân mà không cần biên dịch lại mã nguồn. Điều này cho phép thực hiện fuzzing theo dõi vùng phủ đối với các ứng dụng mã nguồn đóng một cách hiệu quả. Mặc dù AFL++ cũng cung cấp chế độ QEMU hoặc Unicorn để giả lập và lấy thông tin vùng phủ cho các tệp nhị phân, phương pháp này chậm hơn nhiều. Với việc sử dụng Intel PT, Honggfuzz có thể đạt được tốc độ thực thi file gần như khi thực thi native, trong khi vẫn thu thập được dữ liệu vùng phủ chính xác. Một vài thử nghiệm cho thấy thời gian thực thi thường nhanh hơn khoảng 2-10 lần so với QEMU mode của AFL++.
+
+
+- **Branch Trace Store (BTS)** là một tính năng phần cứng khác của Intel cho phép ghi lại các nhánh đã được thực thi một cách hiệu quả. Honggfuzz có thể sử dụng BTS để thu thập thông tin vùng phủ mã với chi phí hiệu năng thấp hơn so với việc chèn mã theo dõi truyền thống. Tuy nhiên, BTS có một số hạn chế về dung lượng bộ đệm và độ phức tạp trong việc giải mã dữ liệu, nên nó thường được sử dụng như một phương pháp bổ sung thay vì thay thế hoàn toàn cho Intel PT.
+
+### Chế độ Persistent Mode
+
+Persistent mode là kỹ thuật fuzzing trong đó tiến trình đích không bị khởi động lại sau mỗi lần thử. Thay vào đó, vòng lặp fuzzing diễn ra bên trong tiến trình, liên tục reset trạng thái của hàm cần kiểm thử và nạp dữ liệu mới. Kỹ thuật này giúp tăng tốc độ thực thi từ vài trăm lần/giây lên hàng trăm nghìn lần/giây.
+
+
+Honggfuzz sử dụng một API riêng cho chế độ này, tiêu biểu là macro `HF_ITER`. Chương trình đích sẽ định nghĩa một vòng lặp gọi tới `HF_ITER(&buf, &len)`. Honggfuzz sẽ can thiệp (hook) vào biểu tượng này. Khi được gọi, fuzzer sẽ điền dữ liệu đã đột biến vào bộ nhớ đệm buf và trả quyền điều khiển cho chương trình đích.
+
+
+```c
+extern HF_ITER(uint8_t** buf, size_t* len);
+int main(void) {
+    for (;;) {
+        size_t len;
+        uint8_t *buf;
+        HF_ITER(&buf, &len); // Fuzzer nạp dữ liệu vào đây
+        ApiToBeFuzzed(buf, len); // Gọi hàm đích
+    }
+}
+```
+
+
+Phương pháp này cho phép truyền dữ liệu trực tiếp trong không gian bộ nhớ của tiến trình, giảm thiểu độ trễ so với việc truyền qua pipe hay shared memory
+
+Trong khi đó, AFL++ triển khai Persistent Mode thông qua macro `__AFL_FUZZ_INIT` và `__AFL_LOOP`. 
+
+```c
+while (__AFL_LOOP(1000)) {
+    // Đọc input, reset trạng thái
+    target_function(buffer);
+}
+```
+
+
+Trong chế độ persistent thuần túy, nó sử dụng tín hiệu và bộ nhớ chia sẻ để đồng bộ với tiến trình fuzzer bên ngoài. Ngược lại, `HF_ITER` của Honggfuzz được thiết kế tối ưu cho việc lặp lại trong cùng một tiến trình (in-process iteration) với sự kiểm soát chặt chẽ hơn về bộ nhớ, thường mang lại độ trễ thấp hơn.
+
+
+Tóm tắt lại:
+
+| Tính năng | Honggfuzz | AFL++ |
+|-----------|-----------|-------|
+|Mô hình thực thi|Đa luồng hoặc Đa tiến trình|Forkserver (Dựa trên tiến trình)|
+|API Persistent Mode|HF_ITER|__AFL_LOOP / __AFL_FUZZ_INIT|
+|Nguồn phản hồi|Phần mềm (Sanitizers) + Phần cứng (Intel PT/BTS)|Phần mềm (LLVM Pass) + QEMU/Unicorn/Frida|
+|Chia sẻ Corpus | Tức thời (Shared Memory/Threads) | Định kỳ (Đồng bộ hóa qua tệp tin)|
+
+## 2.4 AddressSanitizer (ASan)
+
+![alt text](image-5.png)
+
+
+Trong môi trường C/C++, một chương trình có thể đọc **vượt quá giới hạn bộ đệm một vài byte** mà không gây ra crash ngay lập tức (do vùng nhớ lân cận chưa được sử dụng, do OS cấp phát thêm bộ nhớ một cách thụ động, ...), dẫn đến việc các lỗi này bị bỏ qua bởi các fuzzer thông thường. Để khắc phục, công nghệ Instrumentation (gắn mã theo dõi) được sử dụng, điển hình là **AddressSanitizer (ASan)**.
 
 ASan hoạt động dựa trên hai cơ chế chính:
+
+![alt text](image-7.png)
 
 - **Shadow Memory**: ASan dành riêng một vùng bộ nhớ ảo để theo dõi trạng thái của bộ nhớ ứng dụng. Tỷ lệ ánh xạ thường là 8:1, nghĩa là 8 byte bộ nhớ ứng dụng được mô tả bởi 1 byte shadow memory. Giá trị của byte shadow sẽ cho biết trạng thái của 8 byte kia (ví dụ: 0 là hợp lệ, các giá trị âm biểu thị vùng bị cấm như đã giải phóng, vùng đệm stack, v.v.).   
 
 - **Redzones (Vùng đỏ)**: Trình biên dịch chèn các vùng bộ nhớ bị "đầu độc" (poisoned) xung quanh các biến trên stack và heap. Nếu chương trình truy cập vào vùng redzone (tràn bộ đệm), ASan sẽ kiểm tra shadow memory, phát hiện giá trị bị cấm và dừng chương trình ngay lập tức với báo cáo chi tiết.  
 
-Việc sử dụng ASan là bắt buộc trong kế hoạch kiểm thử này để đảm bảo mọi vi phạm bộ nhớ đều được phát hiện bởi Radamsa và AFL++.
-
-## 2.3 AddressSanitizer (ASan)
-
-![alt text](image-5.png)
-
-.....
+> [!NOTE]
+> ASan thường không được dùng như một tool độc lập do nó thể chủ động tìm kiếm, trigger các lỗi (do nó nhận đầu vào cố định từ người dùng) mà nó chỉ có thể thông báo lỗi của chương trình khi nó thực sự xảy ra trên bộ nhớ. Do đó ASan thường được kết hợp với các công cụ khác như fuzzer (AFL++, libFuzzer) để tăng tính chính xác của các công cụ này trong việc phát hiện lỗi bộ nhớ.
