@@ -163,7 +163,62 @@ if (value->u.string.length == 1) {
 
 # Kiểm tra bằng phương pháp static analysis
 
-## ESBMC
+## 1. CppCheck
+
+Cài đặt:
+
+```bash
+sudo apt install cppcheck
+
+# Hoặc cài phiên bản GUI
+sudo apt install cppcheck-gui
+``` 
+
+Một vài cờ cơ bản trong cppcheck:
+
+
+
+| Cờ                              | Ý nghĩa                                      
+| ------------------------------- | ----------------- | 
+| `--enable=<group>`              | Bật các nhóm kiểm tra, bao gồm wảning, style, performance(Lỗi hiệu năng), portability (Không tương thích hệ thống), unusedFunction (Bắt hàm không dùng), all (Bật tất cả),...                                                  |
+| `--inconclusive`                | Bật các cảnh báo “có thể đúng” , chấp nhận dương tính giả                      | `--force`                       | Buộc phân tích ngay cả khi gặp lỗi phân tích cú pháp                   |
+| `--suppress=missingIncludeSystem`| Bỏ cảnh báo thiếu system include|
+| `--std=c99/c11/c++11/c++17/...` | Chỉ định chuẩn ngôn ngữ                           
+| `-I <dir>`                      | Thêm include path cho project nhiều thư mục incluce|
+
+
+Chạy tool:
+
+```bash
+cppcheck --enable=all --inconclusive fuzzgoat.c
+```
+
+```
+fuzzgoat.c:298:30: error: Null pointer dereference: null_pointer [nullPointer]
+              printf ("%d", *null_pointer);
+                             ^
+fuzzgoat.c:297:36: note: Assignment 'null_pointer=NULL', assigned value is 0
+              char *null_pointer = NULL;
+                                   ^
+fuzzgoat.c:298:30: note: Null pointer dereference
+              printf ("%d", *null_pointer);
+                             ^
+```
+
+hoặc tương tự với bản GUI:
+
+
+
+![alt text](image-13.png)
+
+Tool chỉ phát hiện được 1/4 lỗ hổng.
+
+
+
+
+## 2. ESBMC
+
+Tải ESBMC bằng cách build lại từ mã nguồn theo hướng dẫn trên repo của dự án, hoặc đơn giản hơn, tải [file binary đã build sẵn](https://github.com/esbmc/esbmc/releases) mà dự án cung cấp 
 
 Một vài tùy chọn kiểm tra (Trong phiên bản ESBMC 7.11.0 64-bit được sử dụng tại thời điểm viết tài liệu):
 
@@ -494,12 +549,9 @@ case json_string:
 -    char *null_pointer = NULL; 
 -    printf("%d", *null_pointer); 
 -  }
-+  settings->mem_free (value->u.string.ptr, settings->user_data);
-+  break;
 ```
 
-Tác giả sửa lỗi Null Pointer Dereference (nhánh `length == 1` trong json_string) bằng cách xóa hoàn toàn đoạn tạo và dereference con trỏ NULL. Phần xử lý json_string giờ chỉ giải phóng bộ nhớ chuỗi một cách an toàn.
-
+Tác giả sửa lỗi Null Pointer Dereference (nhánh `length == 1` trong json_string) bằng cách xóa hoàn toàn đoạn tạo và dereference con trỏ NULL. 
 Tuy nhiên khi này chạy lại ESBMC không phát hiện thêm lỗi nào nữa.
 
 ```
@@ -519,219 +571,209 @@ VERIFICATION SUCCESSFUL
 
 Lỗi 1 và 3 chưa phát hiện được
 
-- Lỗi 1 (Use-After-Free) không phát hiện vì harness này chỉ gọi `json_value_free_ex()`. Lỗi 1 nằm trong hàm `new_value()` (nhánh json_array) khi xử lý `[]`, nên path đó không bao giờ được thực thi. ESBMC không thể thấy UAF nếu hàm chứa lỗi không được gọi.
+### Phân tích tại sao Lỗi 1 và 3 không được phát hiện
 
----------------------------------------------------------
 
-**Kết quả:** Chỉ phát hiện được **2/4 lỗi**:
-- ✓ Lỗi 3: Invalid Pointer Free (empty string)
-- ✓ Lỗi 4: Null Pointer Dereference (one-byte string)
-- ✗ Lỗi 1: Use After Free (empty array) - KHÔNG phát hiện
-- ✗ Lỗi 2: Out-of-bounds Read (object) - KHÔNG phát hiện
+#### Lỗi 3: Invalid Pointer Free (Empty String)
 
-### Tại sao symbolic approach không thành công như mong đợi?
+**Vấn đề với harness ban đầu (`harness_esbmc_first_try.c`):**
 
-**Vấn đề 1: Lỗi 1 (Use After Free) không nằm trong hàm `json_value_free_ex`**
+Harness ban đầu có một số vấn đề khiến ESBMC không phát hiện được lỗi:
 
-Lỗi Use After Free xảy ra ở hàm `new_value()` (dòng 137 trong fuzzgoat.c):
+1. **Cấu trúc dữ liệu không mô phỏng đúng quá trình parsing:**
+   - Harness tạo một `json_value` "tĩnh" và gán trực tiếp `ptr` bằng `malloc(1)`
+   - Trong thực tế, khi parse một empty string `""`, con trỏ `ptr` được cấp phát bởi `json_alloc` trong hàm `new_value()` với kích thước `(length + 1) * sizeof(json_char)` = 1 byte
+   - ESBMC có thể không track được mối quan hệ giữa con trỏ đã cấp phát và việc decrement `ptr--`
 
-```c
-if (value->u.array.length == 0)
-{
-    free(*top);  // ← Lỗi ở đây
-    break;
-}
-```
+2. **Thiếu symbolic exploration cho trường hợp đặc biệt:**
+   - Harness đã có symbolic `str_len`, nhưng cách khởi tạo có thể không đủ để ESBMC hiểu rằng khi `ptr--`, nó trỏ ra ngoài vùng nhớ hợp lệ
 
-Nhưng test harness của chúng ta chỉ gọi `json_value_free_ex()`, không gọi `new_value()`. Do đó ESBMC không bao giờ khám phá đến đoạn code này.
+**Giải pháp: Tạo harness mới (`harness_esbmc_bug3.c`)**
 
-**Giải pháp:** Cần một test harness riêng gọi hàm `json_parse()` hoặc `new_value()` trực tiếp. Tuy nhiên:
-- `json_parse()` yêu cầu input là chuỗi JSON hợp lệ → khó tạo symbolic string phức tạp
-- `new_value()` là hàm static → không thể gọi từ bên ngoài file
+Harness mới được thiết kế để:
 
-→ **Lỗi 1 không thể phát hiện bằng ESBMC với harness này.**
+1. **Mô phỏng đúng quá trình cấp phát:**
+   ```c
+   // Allocate memory: when length = 0, we allocate 1 byte (for null terminator)
+   size_t alloc_size = (str_len + 1) * sizeof(json_char);
+   value->u.string.ptr = (json_char *)settings.mem_alloc(alloc_size, 0, settings.user_data);
+   ```
 
-**Vấn đề 2: Lỗi 2 (Out-of-bounds Read) bị "che giấu" bởi lỗi trong harness**
+2. **Sử dụng symbolic length để ESBMC khám phá cả hai nhánh:**
+   ```c
+   unsigned int str_len = nondet_int();
+   __ESBMC_assume(str_len <= 2);  // Limit to small values: 0, 1, 2
+   ```
 
-Lỗi này nằm ở dòng 258 trong fuzzgoat.c:
+3. **Đảm bảo ESBMC hiểu được pointer arithmetic:**
+   - Khi `length == 0`, code thực thi `ptr--` trước khi `free(ptr)`
+   - ESBMC với `--pointer-check` sẽ phát hiện rằng `ptr` sau khi decrement không còn trỏ vào vùng nhớ hợp lệ
 
-```c
-value = value->u.object.values [value->u.object.length--].value;
-```
-
-Khi ESBMC khám phá path với `type = json_object`, nó phát hiện lỗi nhưng không phải lỗi out-of-bounds read như mong đợi. Thay vào đó, ESBMC báo lỗi:
-
-```
-Violated property:
-  dereference failure: NULL pointer
-  value->u.object.values[i].value != NULL
-```
-
-**Nguyên nhân:** Trong test harness, ta khởi tạo:
-
-```c
-case json_object: {
-    value->u.object.values = (json_object_entry *)malloc(obj_len * sizeof(json_object_entry));
-    for (i = 0; i < obj_len; i++) {
-        value->u.object.values[i].value = NULL;  // ← Khởi tạo = NULL
-    }
-}
-```
-
-Khi `json_value_free_ex` cố gắng truy cập `value->u.object.values[...].value`, nó gặp con trỏ NULL ngay lập tức. ESBMC phát hiện NULL pointer dereference trong **test harness**, không phải lỗi out-of-bounds read trong **fuzzgoat.c**.
-
-**Vấn đề cốt lõi:** Lỗi Out-of-bounds Read chỉ có ý nghĩa khi cấu trúc `json_value` được khởi tạo **đúng cách** bởi `json_parse()`. Test harness của chúng ta tạo ra cấu trúc "giả" không tuân theo các invariant của chương trình thực.
-
-→ **Lỗi 2 bị che giấu bởi lỗi khởi tạo trong harness.**
-
-**Vấn đề 3: State explosion với symbolic execution**
-
-Với cách tiếp cận symbolic:
-- 8 giá trị type khác nhau
-- 6 giá trị length khác nhau cho mỗi type
-- Các vòng lặp for khởi tạo mảng/object
-- Đệ quy trong `json_value_free_ex`
-
-ESBMC phải khám phá hàng chục đến hàng trăm paths. Với `--unwind` nhỏ, một số paths không được khám phá đầy đủ. Với `--unwind` lớn, thời gian chạy tăng vọt (hàng phút đến hàng giờ).
-
-**Vấn đề 4: Khó tạo symbolic input phù hợp với invariants**
-
-Chương trình JSON parser có nhiều invariants ngầm định:
-- Nếu `type = json_string` và `length > 0`, thì `ptr` phải trỏ đến vùng nhớ hợp lệ
-- Nếu `type = json_object` và `length > 0`, thì mỗi `values[i].value` phải trỏ đến một `json_value` hợp lệ (không phải NULL)
-- Cấu trúc cây: `parent` và `child` phải nhất quán
-
-Việc tạo một cấu trúc symbolic thỏa mãn tất cả các invariants này là **cực kỳ khó khăn**. Nếu không thỏa mãn, ESBMC sẽ phát hiện lỗi trong harness thay vì lỗi trong code gốc.
-
-### Cách tiếp cận 2: Test harness cụ thể cho từng lỗi
-
-Do symbolic approach gặp nhiều hạn chế, ta chuyển sang tạo **test harness cụ thể** cho từng lỗi:
-
-**File `test_string_empty.c` - Phát hiện Lỗi 3 (Invalid Pointer Free):**
-
-```c
-int main() {
-    json_settings settings = { 0 };
-    settings.mem_alloc = wrapper_alloc;
-    settings.mem_free = wrapper_free;
-    
-    json_value *value = (json_value *)malloc(sizeof(json_value));
-    
-    // Thiết lập điều kiện CỤ THỂ: string rỗng
-    value->type = json_string;
-    value->parent = NULL;
-    value->u.string.length = 0;  // ← Empty string
-    value->u.string.ptr = (json_char *)malloc(1);
-    value->u.string.ptr[0] = '\0';
-    
-    json_value_free_ex(&settings, value);
-    return 0;
-}
-```
-
-Chạy ESBMC:
+**Chạy thử harness mới:**
 
 ```bash
-esbmc test_string_empty.c fuzzgoat.c --unwind 5
+esbmc harness_esbmc_bug3.c fuzzgoat.c --unwind 10
 ```
 
-**Kết quả:**
+**Kết quả thực tế:**
+
+ESBMC phát hiện được lỗi thông qua assertion trong wrapper function:
 
 ```
-[Counterexample]
-
-State 1 file fuzzgoat.c line 279 function json_value_free_ex
-----------------------------------------------------
 Violated property:
-  dereference failure: invalid pointer freed
-  value->u.string.ptr points to valid memory
-  
-VERIFICATION FAILED
+  file harness_esbmc_bug3.c line 47 column 9 function wrapper_free
+  Same object violation
+  SAME-OBJECT(ptr, tracked_allocated_ptr)
 ```
 
-✓ **Thành công phát hiện Lỗi 3.**
+**Giải thích:**
+- Khi `length == 0`, code thực thi `ptr--` trước khi gọi `free(ptr)`
+- Con trỏ `ptr` sau khi decrement không còn trỏ vào cùng object với `tracked_allocated_ptr` (con trỏ gốc đã cấp phát)
+- Assertion `__ESBMC_assert(ptr >= tracked_allocated_ptr, ...)` giúp ESBMC phát hiện vi phạm này
+- ESBMC báo "Same object violation" - có nghĩa là `ptr` không còn trỏ vào vùng nhớ hợp lệ nữa
 
-**File `test_string_one.c` - Phát hiện Lỗi 4 (Null Pointer Dereference):**
+**Lưu ý:** ESBMC không tự động phát hiện invalid free khi `ptr--`. Cần thêm assertion hoặc wrapper function để giúp ESBMC hiểu được mối quan hệ giữa con trỏ và vùng nhớ đã cấp phát.
 
-```c
-int main() {
-    json_settings settings = { 0 };
-    settings.mem_alloc = wrapper_alloc;
-    settings.mem_free = wrapper_free;
-    
-    json_value *value = (json_value *)malloc(sizeof(json_value));
-    
-    // Thiết lập điều kiện CỤ THỂ: string có 1 ký tự
-    value->type = json_string;
-    value->parent = NULL;
-    value->u.string.length = 1;  // ← One-byte string
-    value->u.string.ptr = (json_char *)malloc(2);
-    value->u.string.ptr[0] = 'A';
-    value->u.string.ptr[1] = '\0';
-    
-    json_value_free_ex(&settings, value);
-    return 0;
-}
+Từ stacktrace của lần chạy:
+```
+State 7 file harness_esbmc_bug3.c line 70 column 5 function main
+  str_len = 0 (00000000 00000000 00000000 00000000)
+
+State 11 file harness_esbmc_bug3.c line 29 column 9 function wrapper_alloc
+  tracked_allocated_ptr = &dynamic_10_value
+
+State 14 file harness_esbmc_bug3.c line 77 column 5 function main
+  value->u.string.ptr = { .parent=0, .type=5, .anon_pad$2=0, .u=&dynamic_10_value, ... }
+
+State 24 file ../AFL_plus_plus/fuzzgoat.c line 220 column 4 function json_value_free_ex
+  value->parent = { ... }
+
+State 42 file harness_esbmc_bug3.c line 47 column 9 function wrapper_free
+
+
+Violated property:
+  file harness_esbmc_bug3.c line 47 column 9 function wrapper_free
+  Same object violation
+  SAME-OBJECT(ptr, tracked_allocated_ptr)
 ```
 
-Chạy ESBMC:
+1. **State 7:** `str_len = 0` → Empty string, đây là điều kiện để trigger bug
+2. **State 11:** `tracked_allocated_ptr = &dynamic_10_value` → Lưu con trỏ gốc đã cấp phát
+3. **State 14:** `value->u.string.ptr = &dynamic_10_value` → Con trỏ hợp lệ ban đầu
+4. **State 24:** Vào hàm `json_value_free_ex` tại dòng 220 trong `fuzzgoat.c`
+   - Hàm này bắt đầu với `value->parent = 0;` (dòng 220)
+   - Sau đó vào vòng lặp `while (value)` (dòng 222)
+   - Với `value->type = json_string` (type 5), code vào `case json_string:` (dòng 263)
+   
+5. **Flow thực thi trong case json_string:**
+   - **Dòng 278-279:** Kiểm tra `if (!value->u.string.length)` → Đúng (vì length = 0)
+     - Thực thi: `value->u.string.ptr--;` ← **Con trỏ bị decrement tại đây**
+     - Sau dòng này, `ptr` trỏ đến địa chỉ `&dynamic_10_value - 1` (ra ngoài vùng nhớ hợp lệ)
+   
+   - **Dòng 296-299:** Kiểm tra `if (value->u.string.length == 1)` → Sai (vì length = 0)
+     - Bỏ qua đoạn code này
+   
+   - **Dòng 302:** `settings->mem_free (value->u.string.ptr, settings->user_data);`
+     - **Đây là nơi lỗi được kích hoạt (trigger)**
+     - Tại thời điểm này, `value->u.string.ptr` đã bị decrement ở dòng 279
+     - Con trỏ giờ trỏ đến `&dynamic_10_value - 1` thay vì `&dynamic_10_value`
+     - Gọi `mem_free()` (tương đương `free()`) với con trỏ này → **Invalid free**
+     - `free()` yêu cầu con trỏ phải trỏ chính xác vào đầu vùng nhớ đã cấp phát
+     - Con trỏ đã bị lệch 1 byte → Gây lỗi "invalid pointer" hoặc "corrupted pointer"
+
+6. **State 42:** Assertion trong `wrapper_free()` phát hiện vi phạm
+   - Khi `wrapper_free()` được gọi từ dòng 302, nó nhận `ptr = &dynamic_10_value - 1`
+   - Assertion kiểm tra `ptr >= tracked_allocated_ptr` → **FAIL** (vì `ptr < tracked_allocated_ptr`)
+   - ESBMC báo "Same object violation" → Xác nhận `ptr` không còn trỏ vào cùng object với `tracked_allocated_ptr`
+
+**Tại sao biết lỗi xảy ra tại dòng 302:**
+- Từ State 24, ta biết code đã vào hàm `json_value_free_ex`
+- Từ State 7 và State 14, ta biết `value->type = json_string` và `length = 0`
+- Trong `case json_string:`, code thực thi tuần tự:
+  1. Dòng 278-279: `ptr--` (decrement con trỏ) ← Gây lỗi
+  2. Dòng 296-299: Bỏ qua (vì length != 1)
+  3. Dòng 302: `mem_free(ptr, ...)` ← **Nơi lỗi được kích hoạt**
+- State 42 xảy ra trong `wrapper_free()` được gọi từ dòng 302
+- Do đó, dòng 302 là nơi gọi `free()` với con trỏ đã bị decrement → Invalid free
+
+#### Lỗi 1: Use After Free (Empty Array)
+
+**Vấn đề với harness ban đầu (`harness_esbmc_first_try.c`):**
+
+1. **Harness chỉ test `json_value_free_ex`, không test `new_value`:**
+   - Lỗi 1 xảy ra trong hàm `new_value()` tại case `json_array` khi `length == 0`
+   - Harness ban đầu chỉ gọi `json_value_free_ex()`, không bao giờ đi vào hàm `new_value()`
+   - Do đó ESBMC không thể phát hiện lỗi này
+
+2. **Hàm `new_value()` là hàm static:**
+   - Không thể gọi trực tiếp từ harness
+   - Cần mô phỏng flow của bug để ESBMC phát hiện
+
+**Giải pháp: Tạo harness mới (`harness_esbmc_bug1.c`)**
+
+Harness mới mô phỏng flow của lỗi Use After Free:
+
+1. **Tạo json_value với empty array:**
+   ```c
+   value->type = json_array;
+   value->u.array.length = 0;  // Empty array - triggers the bug
+   ```
+
+2. **Mô phỏng bug trong `new_value()`:**
+   - Hàm `simulate_new_value_bug()` mô phỏng logic tại dòng 137 trong `fuzzgoat.c`
+   - Khi `length == 0`, code thực thi `free(*top)` (dòng 137 trong `fuzzgoat.c`)
+   - Nhưng `*top` vẫn được trả về và sử dụng sau đó
+
+3. **Trigger Use After Free:**
+   - Gọi `json_value_free_ex()` với con trỏ đã bị free
+   - Hàm này sẽ truy cập `value->type`, `value->parent` (use after free)
+
+**Chạy thử harness mới:**
 
 ```bash
-esbmc test_string_one.c fuzzgoat.c --unwind 5
+esbmc harness_esbmc_bug1.c fuzzgoat.c --unwind 10
 ```
 
-**Kết quả:**
+**Kết quả thực tế:**
+
+ESBMC phát hiện được lỗi thông qua assertion:
 
 ```
-[Counterexample]
-
-State 1 file fuzzgoat.c line 298 function json_value_free_ex
-----------------------------------------------------
 Violated property:
-  dereference failure: NULL pointer
-  null_pointer != NULL
-  
-VERIFICATION FAILED
+  file harness_esbmc_bug1.c line 75 column 5 function main
+  Use after free: value should not be the freed pointer
+  value != ( struct _json_value *)freed_pointer_tracker
 ```
 
-✓ **Thành công phát hiện Lỗi 4.**
+Từ stacktrace đầy đủ:
+```
+State 7 file harness_esbmc_bug1.c line 59 column 5 function main
+  value->u.array.length = { .parent=0, .type=2, .anon_pad$2=0, .u=0, ... }
 
-### So sánh hai cách tiếp cận
+State 10 file harness_esbmc_bug1.c line 39 column 5 function simulate_new_value_bug
+  freed_pointer_tracker = (void *)(&dynamic_6_value)
 
-| Tiêu chí | Symbolic Input (test_esbmc_focused.c) | Concrete Input (test_string_*.c) |
-|----------|--------------------------------------|----------------------------------|
-| **Khả năng phát hiện** | 2/4 lỗi | 2/4 lỗi (nhưng khác lỗi) |
-| **Thời gian chạy** | Lâu (hàng phút) với --unwind 10 | Nhanh (vài giây) với --unwind 5 |
-| **False positives** | Có (lỗi trong harness) | Không |
-| **Độ chính xác** | Thấp (nhiễu do NULL pointers) | Cao (target chính xác) |
-| **Độ coverage** | Cao (nhiều paths) | Thấp (1 path/lỗi) |
-| **Khả năng tìm lỗi mới** | Có (nếu không biết trước) | Không (phải biết trước lỗi) |
+State 12 file harness_esbmc_bug1.c line 75 column 5 function main
+Violated property:
+  file harness_esbmc_bug1.c line 75 column 5 function main
+  Use after free: value should not be the freed pointer
+  value != ( struct _json_value *)freed_pointer_tracker
+```
 
-### Tóm tắt khó khăn khi dùng ESBMC với fuzzgoat.c
 
-1. **Không có hàm main():** Phải tạo test harness để chỉ định điểm bắt đầu và input.
 
-2. **Cấu trúc phức tạp:** `json_value` là union với nhiều trường, khó tạo symbolic input đúng invariants.
+1. **State 7:** `value->u.array.length = 0` → Empty array, đây là điều kiện để trigger bug
+2. **State 10:** `freed_pointer_tracker = &dynamic_6_value` → Lưu con trỏ trước khi free
+   - Hàm `simulate_new_value_bug()` mô phỏng logic tại dòng 137 trong `fuzzgoat.c`
+   - **Dòng 137 trong fuzzgoat.c:** `free(*top);` ← **Đây là dòng gây lỗi**
+3. **State 12:** Assertion phát hiện `value == freed_pointer_tracker` → Xác nhận Use After Free
+   - Con trỏ `value` đã bị free nhưng vẫn được sử dụng
+   - Khi `json_value_free_ex(value)` được gọi, nó sẽ truy cập vào vùng nhớ đã bị free
 
-3. **Lỗi phân tán:** Lỗi nằm ở nhiều hàm khác nhau (`new_value`, `json_value_free_ex`), cần nhiều harness.
+# Kiểm tra bằng phương pháp dynamic analysis
 
-4. **State explosion:** Quá nhiều paths cần khám phá, ESBMC mất nhiều thời gian hoặc không hoàn thành.
 
-5. **False positives từ harness:** Harness không thể tạo cấu trúc hoàn hảo, gây lỗi phụ che khuất lỗi thực.
-
-6. **Đệ quy và vòng lặp:** Cần `--unwind` phù hợp, quá nhỏ thì bỏ sót, quá lớn thì chậm.
-
-7. **Giới hạn của static analysis:** Không phát hiện được Use After Free (Lỗi 1) vì cần runtime execution để thấy memory được free rồi dùng lại.
-
-### Kết luận
-
-Với fuzzgoat, **ESBMC chỉ phát hiện hiệu quả 2/4 lỗi** (Invalid Pointer Free và Null Pointer Dereference) khi dùng test harness cụ thể. Hai lỗi còn lại (Use After Free và Out-of-bounds Read) cần:
-- **Fuzzing (AFL++):** Tốt cho Use After Free, Out-of-bounds Read
-- **Dynamic analysis (ASan):** Phát hiện tất cả 4 lỗi khi có input phù hợp
-
-Static analysis (ESBMC) có giá trị nhưng không phải "silver bullet" - cần kết hợp nhiều phương pháp để đạt coverage tốt nhất.
-
-# Kiểm tra bằng AFL++
+## 1. AFL++
 
 Cài đặt với:
 
@@ -767,29 +809,66 @@ afl-fuzz -i in -o out -M main0 ./main_afl @@
 afl-fuzz -i in -o out -S sync1 ./main_afl @@
 ```
 
-
-
-
-![alt text](image-9.png)
-
-
 ![alt text](image-10.png)
+
+*Xác nhận AFL++ đã tận dụng được đúng 2 core CPU*
 
 Với kết quả thu được như test case này: fuzzgoat_source_code/AFL_plus_plus/out/sync1/crashes/id:000003,sig:06,src:000193+000313,time:2888,execs:12608,op:splice,rep:3
 
-Dùng testcase đẻ kiểm tra xem lỗi là ở dòng nào:
+## 2. HongFuzz
+
+Cài đặt:
+
+```bash
+git clone https://github.com/google/honggfuzz.git
+cd honggfuzz
+sudo make install
+```
+
+Biên dịch với clang của HongFuzz để nó chèn thêm các instrument vào code:
+
+```bash
+hfuzz-clang -fsanitize=address main_hongfuzz.c fuzzgoat.c -o main_hongfuzz
+```
+Chạy thử:
+
+```bash
+./main_hongfuzz
+```
+
+
+
+## Tìm kiếm dòng gây lỗi từ đầu ra các tool Fuzzing
+
+### Lỗi 4
+
+Với các đầu ra của AFL++, ví dụ file `crashes/id:000003,sig:06,src:000193+000313,time:2888,execs:12608,op:splice,rep:3`, ta có thể thấy rằng:
+
+- `sig:06` cho thấy signal là `SIGABRT` (vi phạm)
+- `src:000193+000313` cho thấy lỗi xảy ra ở offset 000193+000313 trong file
+- `time:2888` cho thấy thời gian chạy của testcase là 2888
+- `execs:12608` cho thấy số lần chạy của testcase là 12608
+- `op:splice` cho thấy phương pháp tạo testcase là splice
+- `rep:3` cho thấy số lần lặp của testcase là 3 
+
+Nội dung trong file này: `"A"`.
+
+Dùng gdb để chạy với đầu vào này:
 
 ```bash
 # Biên dịch lại với gcc
 gcc -g -O0 main_afl.c fuzzgoat.c -o main_afl -lm
 
-
-
 gdb --args ./main_afl "out/sync1/crashes/id:000003,sig:06,src:000193+000313,time:2888,execs:12608,op:splice,rep:3"
-(gdb) run
-
 ```
-Starting program: /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/main_afl out/sync1/crashes/id:000003,sig:06,src:000193+000313,time:2888,execs:12608,op:splice,rep:3
+
+```bash
+(gdb) run
+```
+Output:
+
+``` 
+Starting program: .../Project/fuzzgoat_source_code/AFL_plus_plus/main_afl out/sync1/crashes/id:000003,sig:06,src:000193+000313,time:2888,execs:12608,op:splice,rep:3
 
 This GDB supports auto-downloading debuginfo from the following URLs:
   <https://debuginfod.ubuntu.com>
@@ -798,7 +877,7 @@ Debuginfod has been enabled.
 To make this setting permanent, add 'set debuginfod enabled on' to .gdbinit.
 [Thread debugging using libthread_db enabled]
 Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
-""
+"A"
 --------------------------------
 
 string: 
@@ -807,7 +886,7 @@ free(): invalid pointer
 
 Kiểm tra stacktrace để biết hàm trong chương trình `fuzzgoat.c` nằm trong frame nào:
 
-```
+```bash
 (gdb) bt
 ```
 
@@ -830,12 +909,17 @@ Kiểm tra stacktrace để biết hàm trong chương trình `fuzzgoat.c` nằm
 #12 0x00005555555558ed in main (argc=2, argv=0x7fffffffd2d8) at main_afl.c:137
 ```
 
+```bash
 (gdb) frame 10
+```
+```
 #10 0x0000555555555ece in json_value_free_ex (settings=0x7fffffffd080, value=0x55555555b8b0) at fuzzgoat.c:302
 302                 settings->mem_free (value->u.string.ptr, settings->user_data);
 ```
 
+Xem các dòng code xung quanh đó:
 
+```
 (gdb) list
 297                   char *null_pointer = NULL;
 298                   printf ("%d", *null_pointer);
@@ -847,75 +931,252 @@ Kiểm tra stacktrace để biết hàm trong chương trình `fuzzgoat.c` nằm
 304
 305              default:
 306                 break;
+```
+
+Như vậy là ta đã phát hiện ra lỗi 4
 
 
-## Run with ASAN
+### Lỗi 1
 
 
-chutrunganh@ThinkPad-CTA:~/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus$ ./main_afl_asan "/home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/input-files/oneByteString" 
-"A"
---------------------------------
+Với các lỗi khác liên quan đến overflow, out-of-bounds khi biên dịch với ASan sẽ dễ tìm kiếm lỗi hơn do ASan có thể theo dõi được bộ nhớ được cấp và giải phóng.
 
-string: A
-AddressSanitizer:DEADLYSIGNAL
-=================================================================
-==3874230==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x56ba2dfdbf00 bp 0x7ffef6fa8eb0 sp 0x7ffef6fa8e90 T0)
-==3874230==The signal is caused by a READ memory access.
-==3874230==Hint: address points to the zero page.
-    #0 0x56ba2dfdbf00 in json_value_free_ex /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/fuzzgoat.c:298
-    #1 0x56ba2dfe11a3 in json_value_free /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/fuzzgoat.c:1080
-    #2 0x56ba2dfdaf68 in main /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/main_afl.c:138
-    #3 0x759f2c02a1c9 in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58
-    #4 0x759f2c02a28a in __libc_start_main_impl ../csu/libc-start.c:360
-    #5 0x56ba2dfda4c4 in _start (/home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/main_afl_asan+0x34c4) (BuildId: 64b73250af3a391cee0f6b4ee6f6fd60642aa657)
+```bash
+# Biên dịch lại có thêm option ASan
+gcc -fsanitize=address -g -o main_afl_asan main_afl.c fuzzgoat.c -lm
 
-AddressSanitizer can not provide additional info.
-SUMMARY: AddressSanitizer: SEGV /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/fuzzgoat.c:298 in json_value_free_ex
-==3874230==ABORTING
+gdb --args ./main_afl_asan ./crashes/id:000003,sig:06,src:000193+000313,time:2888,execs:12608,op:splice,rep:3
+```
+Nội dung trong file này: `[]`
 
-
-Via gdb:
-
-
-chutrunganh@ThinkPad-CTA:~/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus$ gdb --args ./main_afl "/home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/input-files/oneByteString" 
-GNU gdb (Ubuntu 15.0.50.20240403-0ubuntu1) 15.0.50.20240403-git
-Copyright (C) 2024 Free Software Foundation, Inc.
-License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
-This is free software: you are free to change and redistribute it.
-There is NO WARRANTY, to the extent permitted by law.
-Type "show copying" and "show warranty" for details.
-This GDB was configured as "x86_64-linux-gnu".
-Type "show configuration" for configuration details.
-For bug reporting instructions, please see:
-<https://www.gnu.org/software/gdb/bugs/>.
-Find the GDB manual and other documentation resources online at:
-    <http://www.gnu.org/software/gdb/documentation/>.
-
-For help, type "help".
-Type "apropos word" to search for commands related to "word"...
-Reading symbols from ./main_afl...
+```bash
 (gdb) run
-Starting program: /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/main_afl /home/chutrunganh/Documents/HUST/An\ Toan\ PM/Project/fuzzgoat_source_code/input-files/oneByteString
+```
 
-This GDB supports auto-downloading debuginfo from the following URLs:
-  <https://debuginfod.ubuntu.com>
-Enable debuginfod for this session? (y or [n]) y
-Debuginfod has been enabled.
-To make this setting permanent, add 'set debuginfod enabled on' to .gdbinit.
-Downloading separate debug info for system-supplied DSO at 0x7ffff7fc3000
-[Thread debugging using libthread_db enabled]                                                                                                      
+```
 Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
-"A"
+[]
 --------------------------------
 
-string: A
+=================================================================
+```
 
-Program received signal SIGSEGV, Segmentation fault.
-0x0000555555555e92 in json_value_free_ex (settings=0x7fffffffd070, value=0x55555555b8b0) at fuzzgoat.c:298
-298                   printf ("%d", *null_pointer);
-(gdb) 
+```
+==72322==ERROR: AddressSanitizer: heap-use-after-free on address 0x504000000018 at pc 0x55555555b675 bp 0x7fffffffccd0 sp 0x7fffffffccc0
+READ of size 4 at 0x504000000018 thread T0
+    #0 0x55555555b674 in json_parse_ex /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/fuzzgoat.c:643
+    ......
+
+0x504000000018 is located 8 bytes inside of 40-byte region [0x504000000010,0x504000000038)
+freed by thread T0 here:
+    #0 0x7ffff78fc4d8 in free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:52
+    #1 0x5555555584ed in new_value /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/fuzzgoat.c:137
+    .....
+```
+
+Theo kết quả thì tại dòng 643: ` if (top && top->type == json_array)` con trỏ `top` được sử dụng (Chương trình đang cố đọc dữ liệu tại vùng nhớ này `READ of size 4 at 0x504000000018 thread T0`), tuy nhiên nó đã được free bởi dòng 137: `free(*top);` do đó gây ra lỗi heap-use-after-free.
 
 
+### Lỗi 2
 
-# Kiểm tra bằng ASan
+
+```bash
+# Biên dịch lại có thêm option ASan
+gcc -fsanitize=address -g -o main_afl_asan main_afl.c fuzzgoat.c -lm
+
+gdb --args ./main_afl_asan ./crashes/id:000003,sig:06,src:000193+000313,time:2888,execs:12608,op:splice,rep:3
+```
+
+Nội dung trong file này: `{"":0}`
+
+```bash
+(gdb) run
+```
+
+```
+{"":0}
+--------------------------------
+
+ object[0].name = 
+  int:          0
+=================================================================
+```
+
+```
+=================================================================
+==64963==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x503000000068 at pc 0x628fcbdfddfd bp 0x7fff00807230 sp 0x7fff00807220
+READ of size 8 at 0x503000000068 thread T0
+    #0 0x628fcbdfddfc in json_value_free_ex /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/fuzzgoat.c:258
+    #1 0x628fcbe031a3 in json_value_free /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/fuzzgoat.c:1080
+    #2 0x628fcbdfcf68 in main /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/main_afl.c:138
+    #3 0x77164fa2a1c9 in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58
+    #4 0x77164fa2a28a in __libc_start_main_impl ../csu/libc-start.c:360
+    #5 0x628fcbdfc4c4 in _start (/home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/main_afl_asan+0x34c4) (BuildId: 5032e2040f9a693c63c2c8958bccdf044045f310)
+
+0x503000000068 is located 15 bytes after 25-byte region [0x503000000040,0x503000000059)
+allocated by thread T0 here:
+    #0 0x77164fefd9c7 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x628fcbdfd164 in default_alloc /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/fuzzgoat.c:80
+    #2 0x628fcbdfd2f7 in json_alloc /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/fuzzgoat.c:99
+    #3 0x628fcbdfd6a3 in new_value /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/fuzzgoat.c:159
+    #4 0x628fcbe00995 in json_parse_ex /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/fuzzgoat.c:690
+    #5 0x628fcbe02fe2 in json_parse /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/fuzzgoat.c:1073
+    #6 0x628fcbdfcecf in main /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/main_afl.c:128
+    #7 0x77164fa2a1c9 in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58
+    #8 0x77164fa2a28a in __libc_start_main_impl ../csu/libc-start.c:360
+    #9 0x628fcbdfc4c4 in _start (/home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/main_afl_asan+0x34c4) (BuildId: 5032e2040f9a693c63c2c8958bccdf044045f310)
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/fuzzgoat.c:258 in json_value_free_ex
+```
+
+
+Báo lỗi tại dòng 258 của file `fuzzgoat.c`: `value = value->u.object.values [value->u.object.length--].value;`
+
+### Lỗi 3
+
+```bash
+gdb --args ./main_afl "out/sync1/crashes/id:000003,sig:06,src:000193+000313,time:2888,execs:12608,op:splice,rep:3"
+```
+
+```bash
+(gdb) run
+```
+
+```
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+""
+--------------------------------
+
+string: 
+free(): invalid pointer
+
+Program received signal SIGABRT, Aborted.
+Download failed: Invalid argument.  Continuing without source file ./nptl/./nptl/pthread_kill.c.
+__pthread_kill_implementation (no_tid=0, signo=6, threadid=<optimized out>) at ./nptl/pthread_kill.c:44
+warning: 44     ./nptl/pthread_kill.c: No such file or directory
+```
+
+Kiểm tra stacktrace:
+
+```bash
+(gdb) bt
+```
+
+```
+#0  __pthread_kill_implementation (no_tid=0, signo=6, threadid=<optimized out>) at ./nptl/pthread_kill.c:44
+#1  __pthread_kill_internal (signo=6, threadid=<optimized out>) at ./nptl/pthread_kill.c:78
+#2  __GI___pthread_kill (threadid=<optimized out>, signo=signo@entry=6) at ./nptl/pthread_kill.c:89
+#3  0x00007ffff7c4527e in __GI_raise (sig=sig@entry=6) at ../sysdeps/posix/raise.c:26
+#4  0x00007ffff7c288ff in __GI_abort () at ./stdlib/abort.c:79
+#5  0x00007ffff7c297b6 in __libc_message_impl (fmt=fmt@entry=0x7ffff7dce8d7 "%s\n") at ../sysdeps/posix/libc_fatal.c:134
+#6  0x00007ffff7ca8ff5 in malloc_printerr (str=str@entry=0x7ffff7dcc672 "free(): invalid pointer") at ./malloc/malloc.c:5772
+#7  0x00007ffff7cab38c in _int_free (av=<optimized out>, p=<optimized out>, have_lock=0) at ./malloc/malloc.c:4507
+#8  0x00007ffff7caddae in __GI___libc_free (mem=0x55555555b8df) at ./malloc/malloc.c:3398
+#9  0x0000555555555a2b in default_free (ptr=0x55555555b8df, user_data=0x0) at fuzzgoat.c:85
+#10 0x0000555555555ee8 in json_value_free_ex (settings=0x7fffffffd080, value=0x55555555b8b0) at fuzzgoat.c:302
+#11 0x0000555555557ef2 in json_value_free (value=0x55555555b8b0) at fuzzgoat.c:1080
+#12 0x0000555555555907 in main (argc=2, argv=0x7fffffffd2d8) at main_afl.c:138
+```
+
+Lỗi xảy ra trong hàm `json_value_free_ex` tại dòng 302 của file `fuzzgoat.c`. Đặt breakpoint tại đây:
+
+```bash
+(gdb) break json_value_free_ex
+```
+
+Sau đó chạy lại:
+
+```bash
+(gdb) run
+```
+
+```
+The program being debugged has been started already.
+Start it from the beginning? (y or n) y
+Starting program: /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/AFL_plus_plus/main_afl ./input-files/emptyString
+Downloading separate debug info for system-supplied DSO at 0x7ffff7fc3000
+[Thread debugging using libthread_db enabled]                                                                             
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+""
+--------------------------------
+
+string: 
+
+Breakpoint 1, json_value_free_ex (settings=0x7fffffffd080, value=0x55555555b8b0) at fuzzgoat.c:217
+217        if (!value)
+```
+
+PC đang dừng ở tại đầu hàm `json_value_free_ex` nơi ta đặt breakpoint. Như trong code thì:
+
+```c
+void json_value_free_ex (json_settings * settings, json_value * value)
+{
+   json_value * cur_value;
+
+   if (!value)
+      return;
+
+   value->parent = 0;
+
+   while (value)
+   {
+      switch (value->type)
+      {
+         case json_array:
+            //...
+         case json_object:
+            //...
+         case json_string:
+            //...
+```
+
+Vì `value` chỉ là con trỏ trỏ đến cấu trúc dữ liệu chung, mà ta cần theo dõi thành phần bên trong của nó, sẽ gây ra crash trong hàm này. Kiểm tra xem `value` đang trỏ đến case nào với đầu vào ta đưa:
+
+```bash
+(gdb) p value->type
+```
+
+```
+$1 = json_string
+```
+
+Trong case string:
+
+```c
+case json_string:
+  if (!value->u.string.length){
+    value->u.string.ptr--;
+  }
+
+  if (value->u.string.length == 1) {
+    char *null_pointer = NULL;
+    printf ("%d", *null_pointer);
+  }
+
+  settings->mem_free (value->u.string.ptr, settings->user_data);
+  break;
+
+      };
+}
+```
+
+Trogn case này `value` trỏ tới `value->u.string.ptr`, theo dõi biến này ta thấy:
+
+```bash
+(gdb) p value->u.string.ptr
+Hardware watchpoint 2: value->u.string.ptr
+(gdb) continue
+```
+```
+Continuing.
+
+Hardware watchpoint 2: value->u.string.ptr
+
+Old value = 0x55555555b8e0 ""
+New value = 0x55555555b8df ""
+json_value_free_ex (settings=0x7fffffffd080, value=0x55555555b8b0) at fuzzgoat.c:296
+296                 if (value->u.string.length == 1) {
+```
+Như vậy là tại đây giá trị `value->u.string.ptr` giảm đi 1 byte bởi câu lệnh nằm ở ngay trước dòng 296, thế tức là dòng 279 ` value->u.string.ptr--;` dòng này giảm con trỏ xuống 1 byte, khiến sai lệnh vị trí trong cách con trỏ trỏ đến dữ liệu, do đó tại dòng 302 `settings->mem_free (value->u.string.ptr, settings->user_data);` phía dưới gây crash như ta thấy trong stacktrace ban đầu.
+
 

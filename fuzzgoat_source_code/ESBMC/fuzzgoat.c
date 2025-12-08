@@ -297,8 +297,6 @@ void json_value_free_ex (json_settings * settings, json_value * value)
             //   char *null_pointer = NULL;
             //   printf ("%d", *null_pointer);
             // }
-            settings->mem_free (value->u.string.ptr, settings->user_data);
-            break;
 /****** END vulnerable code **************************************************/
 
             settings->mem_free (value->u.string.ptr, settings->user_data);

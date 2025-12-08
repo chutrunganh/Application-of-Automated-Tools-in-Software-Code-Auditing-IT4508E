@@ -78,7 +78,7 @@ flowchart TD
 
     - **Formal Reasoning** Sử dụng logic toán học để chứng minh các thuộc tính của chương trình, gồm có các phương pháp như:
 
-        - **Hoare Logic**: Sử dụng bộ ba Hoare {P}S{Q} với P là điều kiện trước, Q là điều kiện sau và S là đoạn mã cần chứng minh. Bộ ba này khẳng định rằng nếu chương trình S bắt đầu với điều kiện P đúng, nó sẽ kết thúc với điều kiện Q đúng. Ví dụ thực tế được dùng trong SPARK Ada.
+        - **Hoare Logic**: Sử dụng bộ ba Hoare $P$ | $S$ | $Q$ với $P$ là điều kiện trước, $Q$ là điều kiện sau và $S$ là đoạn mã cần chứng minh. Bộ ba này khẳng định rằng nếu chương trình $S$ bắt đầu với điều kiện $P$ đúng, nó sẽ kết thúc với điều kiện $Q$ đúng. Ví dụ thực tế được dùng trong SPARK Ada.
 
         - **Automated Theorem Prover**: Công cụ tự động sử dụng logic (như logic bậc nhất) để chứng minh các định lý về chương trình. Mục tiêu của ATP là chứng minh rằng một khẳng định (định lý) luôn đúng trong mọi trường hợp (tức là luôn hợp lệ theo logic), dựa trên một tập hợp các tiên đề hoặc giả định.
 
@@ -158,7 +158,254 @@ Cụ thể hơn vầ các loại fuzzing:
 
 # 2. Các công cụ được sử dụng
 
-## 2.1 ESBMC
+## 2.1 Static Analysis
+
+### Cppcheck
+
+![alt text](image-12.png)
+
+Quy trình phân tích của CppCheck bao gồm các bước sau:
+
+```mermaid
+flowchart LR
+    A[Preprocessing] --> B[Lexical Analysis]
+    B --> C[Semantic Analysis]
+    C --> D[Abstract Syntax Tree]
+    D --> E[Value Flow Analysis]
+    E --> F[Checkers]
+    F --> G[Output]
+```
+
+Ví dụ:
+
+```c
+#include <stdlib.h>
+
+#define MAX 10
+
+#ifdef DEBUG
+int get_index() {
+    return 1000;   // lỗi sẽ bị bỏ qua nếu DEBUG không bật
+}
+#endif
+
+void foo(int x) {
+    int buf[MAX];
+
+    buf[x] = 0;        // lỗi tràn bộ đệm nếu x quá lớn
+
+    int *p;
+    *p = 10;           // lỗi dereference pointer chưa khởi tạo
+}
+
+int main() {
+    foo(20);
+}
+```
+
+1. **Preprocessing**
+
+Cppcheck xử lý các chỉ thị tiền xử lý (preprocessor directives) như #include, #define, v.v. để tạo ra mã nguồn thô. Tuy nhiên, thày vì giống như các trình biên dịch thông thường (GCC/Clang) chỉ biên dịch một cấu hình duy nhất (dựa trên các flag -D), Cppcheck cố gắng đạt độ bao phủ tối đa bằng cách sử dụngĐa cấu hình (Multi-configuration). 
+
+Cụ thể, Cppcheck sẽ cố gắng phân tích tất cả các nhánh `#ifdef`, `#ifndef`, `#if`, `#elif`, `#else`, `#endif`. Ví dụ code có  `#ifdef DEBUG`, Cppcheck sẽ chạy phân tích 2 lần: một lần với `DEBUG` được định nghĩa, và một lần không. Điều này giúp phát hiện lỗi nằm sâu trong các đoạn code debug hoặc code dành riêng cho nền tảng mà trình biên dịch thường bỏ qua nếu không đúng flag.
+
+
+Chạy
+
+```bash
+cppcheck --dump sample.c
+```
+
+Sẽ sinh ra file `.dump`, trong file này có thể thấy:
+
+```xml
+<tok fileIndex="0" linenr="6" column="2" str="ifdef"/>
+<tok fileIndex="0" linenr="6" column="8" str="DEBUG"/>
+<tok fileIndex="0" linenr="7" column="1" str="int"/>
+<tok fileIndex="0" linenr="7" column="5" str="get_index"/>
+```
+
+Cppcheck giữ cả 2 đường, không bỏ nhánh nào, trong khi với GCC/Clang chỉ giữ nhánh phù hợp với `-DDEBUG`.
+
+2. **Lexical Analysis**
+
+Cppcheck chuyển đổi mã nguồn thô thành một chuỗi các Tokens:
+
+- Nó loại bỏ comment, khoảng trắng thừa.
+
+- Nó gán "Identity" cho từng token (Ví dụ: đây là biến, đây là số, đây là toán tử).
+
+Kết quả: Một danh sách liên kết đôi các token. Việc sử dụng danh sách liên kết giúp Cppcheck dễ dàng chèn, xóa hoặc thay thế token trong bước đơn giản hóa tiếp theo.
+
+```xml
+<rawtokens>
+    <file index="0" name="sample.c"/>
+    <tok fileIndex="0" linenr="1" column="1" str="// sample.c"/>
+    <tok fileIndex="0" linenr="2" column="1" str="#"/>
+    <tok fileIndex="0" linenr="2" column="2" str="include"/>
+    <tok fileIndex="0" linenr="2" column="10" str="&lt;stdlib.h&gt;"/>
+    <tok fileIndex="0" linenr="4" column="1" str="#"/>
+    <tok fileIndex="0" linenr="4" column="2" str="define"/>
+    <tok fileIndex="0" linenr="4" column="9" str="MAX"/>
+    <tok fileIndex="0" linenr="4" column="13" str="10"/>
+    <tok fileIndex="0" linenr="6" column="1" str="#"/>
+    <tok fileIndex="0" linenr="6" column="2" str="ifdef"/>
+    <tok fileIndex="0" linenr="6" column="8" str="DEBUG"/>
+    <tok fileIndex="0" linenr="7" column="1" str="int"/>
+    <tok fileIndex="0" linenr="7" column="5" str="get_index"/>
+    ....
+</rawtokens>
+```
+
+3. **Simplification & Normalization**
+
+Cppchack viết lại code về một dạng chuẩn đơn giản hơn để giảm bớt độ phức tạp cho các thuật toán kiểm tra.
+
+Nó thực hiện hàng ngàn phép biến đổi, ví dụ:
+
+- Chuẩn hóa vòng lặp: `do { ... } while(0)` sẽ được biến đổi thành `{ ... }` (một block code bình thường).
+
+- Chuẩn hóa biến: `void *p;` và `char* p;` có thể được xử lý tương tự nhau trong ngữ cảnh kiểm tra leak.
+
+- Giảm thiểu cú pháp: `A[i]` có thể được biểu diễn nội bộ dưới dạng con trỏ `*(A+i)` để thống nhất cách kiểm tra tràn bộ nhớ.
+
+- Loại bỏ code chết: Nếu nó phát hiện `if (0) { ... }`, nó sẽ xóa block đó khỏi danh sách token để không tốn công phân tích.
+
+Chạy:
+
+```bash
+cppcheck --debug-normal sample.c
+```
+
+```
+##file sample.c
+
+1:
+|
+6:
+7: int get_index ( ) {
+8: return 1000 ;
+9: }
+10:
+11:
+12: void foo ( int x@var1 ) {
+13: int buf@var2 [@exprUNIQUE $10 ] ;
+14:
+15: buf@var2 [@exprUNIQUE x@var1 ] = 0 ;
+16:
+17:
+18: if ( x@var1 ==@exprUNIQUE 1000 ) {
+19:
+20: }
+21:
+22:
+23: int * p@var3 ;
+24: *@exprUNIQUE p@var3 = 10 ;
+25: }
+26:
+27: int main ( ) {
+28: foo (@exprUNIQUE 20 ) ;
+29: }
+```
+
+4. **Abstract Syntax Tree**
+
+Nó biến chuỗi token phẳng thành cấu trúc cây để hiểu ngữ cảnh cha-con để máy tính có thể hiểu được ngữ cảnh của mỗi token.
+
+5. **Value Flow Analysis**
+
+Phân tích Dòng dữ liệu Hai chiều (Bi-Directional Data Flow): CppCheck thực hiện phân tích "dòng giá trị" (Value Flow Analysis). Điểm độc đáo của nó là khả năng suy luận hai chiều. Nó có thể suy luận xuôi, ví dụ nếu x = 10, thì lệnh y = x sau đó ngụ ý y = 10. Quan trọng hơn, nó có thể suy luận ngược. Ví dụ:
+
+    ```c
+    void foo(int x) {
+        int buf;
+        buf[x] = 0;      
+        if (x == 1000) { 
+            //...
+            }
+    }
+    ```
+
+Hầu hết các công cụ phân tích xuôi sẽ bỏ qua lỗi ở dòng (1) vì giá trị của x chưa biết. Tuy nhiên, CppCheck nhìn thấy điều kiện ở dòng (2) và suy luận rằng: "Nếu có khả năng x bằng 1000, thì lệnh truy cập buf[x] ở dòng (1) trước đó chắc chắn gây ra lỗi tràn bộ đệm (buffer overflow)". Khả năng liên kết thông tin ngược dòng này giúp CppCheck phát hiện các lỗi logic mà các công cụ khác thường bỏ sót
+
+Cppcheck nó dùng luồng này để:
+
+- Theo dõi giá trị: Cppcheck cố gắng tính toán giá trị của biến tại các thời điểm khác nhau
+
+- Use-Def Chains: Nó tạo ra các liên kết giữa nơi biến được định nghĩa (Defined) và nơi biến được sử dụng (Used). Nếu một biến được cấp phát (Defined: malloc) nhưng không bao giờ được giải phóng (Used: free) trước khi ra khỏi scope -> Báo lỗi Memory Leak.
+
+- Path Analysis (Phân tích đường đi): Nó duyệt qua Control Flow Graph. Tuy nhiên, để đảm bảo tốc độ, Cppcheck không duyệt sâu "vét cạn" (symbolic execution) như Scan-build, mà nó dùng các thuật toán ước lượng. Điều này giải thích tại sao Cppcheck nhanh hơn nhưng đôi khi bỏ sót các lỗi logic quá phức tạp.
+
+Chạy:
+
+```bash
+cppcheck --debug sample.c
+```
+
+```
+##Value flow
+File sample.c
+Line 8
+  1000 always 1000
+Line 13
+  10 always 10
+Line 15
+  buf always Uninit*
+  x possible {1000,20@1}
+  = always 0
+  0 always 0
+Line 18
+  x possible 20@1
+  == {!<=-1,!>=2,0}
+  1000 always 1000
+Line 24
+  p always Uninit
+  = always 10
+  10 always 10
+Line 28
+  20 always 20
+```
+
+*CppCheck được thiết kế là một công cụ với triết lý thiên về **unsound**. Trong lý thuyết phân tích tĩnh, một công cụ **sound** đảm bảo tìm thấy tất cả các lỗi thuộc một lớp nhất định (nhưng thường kèm theo nhiều cảnh báo sai). CppCheck hy sinh tính đầy đủ này để đổi lấy tốc độ và độ chính xác của các cảnh báo. Nó đưa ra các giả định đơn giản hóa về các lời gọi hàm và biến ngoại lai để giảm nhiễu.*
+
+6. **Checkers**
+
+Cuối cùng, dựa trên Token List, AST, và Value Flow, các "Checkers" sẽ chạy để tìm mẫu lỗi cụ thể. Cppcheck chia thành các nhóm checker:
+
+- Memory Checker: Kiểm tra malloc/free, new/delete.
+
+- Null Pointer Checker: Dựa vào Value Flow để xem có đường đi nào dẫn đến giá trị NULL trước khi dereference không.
+
+- Bounds Checker: Kiểm tra chỉ số mảng có vượt quá kích thước khai báo trong Symbol Database không.
+
+- Uninitialized Var Checker: Kiểm tra xem biến có được gán giá trị trước khi đọc không.
+
+
+Chạy:
+
+```bash
+cppcheck --enable=all sample.c
+```
+
+```
+sample.c:15:8: error: Array 'buf[10]' accessed at index 20, which is out of bounds. [arrayIndexOutOfBounds]
+    buf[x] = 0;        // lỗi tràn bộ đệm nếu x quá lớn
+       ^
+sample.c:28:9: note: Calling function 'foo', 1st argument '20' value is 20
+    foo(20);
+        ^
+sample.c:15:8: note: Array index out of bounds
+    buf[x] = 0;        // lỗi tràn bộ đệm nếu x quá lớn
+       ^
+sample.c:24:6: error: Uninitialized variable: p [uninitvar]
+    *p = 10;           // lỗi dereference pointer chưa khởi tạo
+     ^
+sample.c:15:12: style: Variable 'buf[x]' is assigned a value that is never used. [unreadVariable]
+    buf[x] = 0;        // lỗi tràn bộ đệm nếu x quá lớn
+           ^
+```
+
+## 2.2 ESBMC
 
 ![alt text](image-3.png)
 
@@ -269,9 +516,9 @@ Tuy nhiên việc dùng tính năng `--k-induction` này sẽ làm tăng đáng 
 
 Cụ thể: ESBMC sẽ bắt đầu kiểm tra chương trình với số bước lặp (loop unwind) nhỏ (ví dụ k=1). Nếu không tìm thấy lỗi, nó tự động tăng k lên (k=2, k=3,...) và kiểm tra tiếp tới khi phát hiện lỗi thì thôi.
 
-- Ưu điệm: Nó cực kỳ hiệu quả để tìm ra các lỗi xảy ra sớm (shallow bugs) mà không tốn tài nguyên để tính toán các trường hợp quá sâu ngay từ đầu.
+- **Ưu điểm**: Nó cực kỳ hiệu quả để tìm ra các lỗi xảy ra sớm (shallow bugs) mà không tốn tài nguyên để tính toán các trường hợp quá sâu ngay từ đầu.
 
-- Nhược điểm: Nếu chương trình không có lỗi và vòng lặp là vô hạn, nó có thể chạy mãi mãi (hoặc đến khi hết RAM/thời gian) mà không bao giờ kết luận được là chương trình tuyệt đối đúng.
+- **Nhược điểm**: Nếu chương trình không có lỗi và vòng lặp là vô hạn, nó có thể chạy mãi mãi (hoặc đến khi hết RAM/thời gian) mà không bao giờ kết luận được là chương trình tuyệt đối đúng.
 
 
 ### Quá trình hoạt động của ESBMC
@@ -467,7 +714,7 @@ esbmc test.c --smt-formula-only
 
 **5. SMT Solver giải quyết**
 
-ESBMC sử dụng các SMT Solver như Z3, CVC5 để giải công thức $ψ_k$. Bộ giải sẽ trả về:
+ESBMC sử dụng các SMT Solver để giải công thức $ψ_k$. Bộ giải sẽ trả về:
 
 - Nếu $ψ_k$​ là Thỏa mãn: SMT solver trả lời `VERIFICATION FAILED` và cung cấp một ví dụ phản chứng là một tập hợp các giá trị cụ thể cho các biến đầu vào và một chuỗi các bước thực thi từ đó có thể xảy ra lỗi. Chương trình có lỗi ở độ sâu $≤ k$.
 
@@ -501,6 +748,17 @@ Nếu không có lỗi (đổi `assert(x == 10)` thành `assert(x == 6)`), outpu
 ```
 VERIFICATION SUCCESSFUL
 ```
+
+ESBMC hỗ trợ nhiều SMT Solver khác nhau, bao gồm:
+
+- Z3 4.13+
+- Bitwuzla
+- Boolector 3.0+ (Mặc định khi chạy)
+- MathSAT
+- CVC4
+- CVC5
+    Yices 2.2+
+
 
 > [!TIP]
 > Ngoài ra, ESBMC còn có khả năng tự động sửa mã nguồn dựa vào các lỗi đã dò tìm được bằng cách sử dụng thêm công cụ [**ESBMC-AI**](https://github.com/esbmc/esbmc-ai). Đây là một công cụ bổ sung cho ESBMC, sử dụng các kỹ thuật LLM để tự động đọc các Counter Example trong trường hợp VERIFICATION FAILED do ESBMC tạo ra và từ đó sửa lỗi cho mã nguồn gốc.
@@ -707,3 +965,15 @@ ASan hoạt động dựa trên hai cơ chế chính:
 
 > [!NOTE]
 > ASan thường không được dùng như một tool độc lập do nó thể chủ động tìm kiếm, trigger các lỗi (do nó nhận đầu vào cố định từ người dùng) mà nó chỉ có thể thông báo lỗi của chương trình khi nó thực sự xảy ra trên bộ nhớ. Do đó ASan thường được kết hợp với các công cụ khác như fuzzer (AFL++, libFuzzer) để tăng tính chính xác của các công cụ này trong việc phát hiện lỗi bộ nhớ.
+
+
+
+# Tổng hợp
+
+| Tiêu chí                 | CppCheck                               | Scan-build (CSA)                       | ESBMC                                      | Radamsa                                  | AFL++ / Honggfuzz                      |
+| :----------------------- | :------------------------------------- | :------------------------------------- | :----------------------------------------- | :--------------------------------------- | :------------------------------------- |
+| **Phương pháp**          | Static (Flow-sensitive)                | Static (Symbolic Exec)                 | Formal (Bounded Model Checking)            | Dynamic (Black-box)                      | Dynamic (Grey-box)                     |
+| **Phát hiện tốt nhất**   | Undefined Behavior, Style, Simple Leaks | Use-after-free, Path-dependent bugs    | Concurrency bugs, Assertions, Math correctness | Parser crashes, Buffer overflows (shallow) | Deep logic bugs, State machine errors  |
+| **Tỷ lệ Dương tính giả** | Rất thấp (Mục tiêu thiết kế)           | Trung bình (Cao hơn nếu bật CTU)       | 0 (Lý thuyết) / Rất thấp                   | 0 (Crash là thật)                        | 0 (Crash là thật)                      |
+| **Tỷ lệ Âm tính giả**    | Cao (Bỏ sót nhiều lỗi phức tạp)        | Trung bình (Do cắt đường dẫn)          | Thấp (Trong giới hạn bound)                | Cao (Do độ bao phủ thấp)                | Thấp (Theo thời gian chạy)             |
+| **Khả năng Mở rộng**     | Rất cao (Triệu dòng code/phút)         | Trung bình (Chậm hơn biên dịch 2-3x)   | Thấp (Chỉ cho module nhỏ/kernel)           | Cao (Phụ thuộc tốc độ I/O)              | Trung bình (Cần nhiều CPU/thời gian)   |
