@@ -1,9 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "fuzzgoat.h"
 
+// AFL++ persistent mode - chạy nhiều test case trong 1 process
+#ifdef __AFL_HAVE_MANUAL_CONTROL
+  __AFL_FUZZ_INIT();
+#endif
+
+// Định nghĩa buffer size tối đa cho input
+#define MAX_INPUT_SIZE 1048576  // 1MB
 
 static void print_depth_shift(int depth)
 {
@@ -78,64 +87,35 @@ static void process_value(json_value* value, int depth)
 
 int main(int argc, char** argv)
 {
-        char* filename;
-        FILE *fp;
-        struct stat filestatus;
-        int file_size;
-        char* file_contents;
-        json_char* json;
+        // Khởi tạo buffer tĩnh để tái sử dụng trong persistent mode
+        static unsigned char input_buf[MAX_INPUT_SIZE];
+        ssize_t len;
         json_value* value;
 
-        if (argc != 2) {
-                fprintf(stderr, "%s <file_json>\n", argv[0]);
-                return 1;
-        }
-        filename = argv[1];
-
-        if ( stat(filename, &filestatus) != 0) {
-                fprintf(stderr, "File %s not found\n", filename);
-                return 1;
-        }
-        file_size = filestatus.st_size;
-        file_contents = (char*)malloc(filestatus.st_size + 1);
-        if ( file_contents == NULL) {
-                fprintf(stderr, "Memory error: unable to allocate %d bytes\n", file_size);
-                return 1;
-        }
-
-        fp = fopen(filename, "rt");
-        if (fp == NULL) {
-                fprintf(stderr, "Unable to open %s\n", filename);
-                fclose(fp);
-                free(file_contents);
-                return 1;
-        }
-        if ( fread(file_contents, file_size, 1, fp) != 1 ) {
-                fprintf(stderr, "Unable t read content of %s\n", filename);
-                fclose(fp);
-                free(file_contents);
-                return 1;
-        }
-        fclose(fp);
-        file_contents[file_size] = '\0'; 
-
-        printf("%s\n", file_contents);
-
-        printf("--------------------------------\n\n");
-
-        json = (json_char*)file_contents;
-
-        value = json_parse(json,file_size);
-
-        if (value == NULL) {
-                fprintf(stderr, "Unable to parse data\n");
-                free(file_contents);
-                exit(1);
+        // Persistent mode: AFL++ sẽ gọi hàm này nhiều lần
+        // Deferred initialization: trì hoãn fork server đến sau khi khởi tạo
+        __AFL_INIT();
+        
+        unsigned char *buf = __AFL_FUZZ_TESTCASE_BUF;  // Shared memory buffer
+        
+        while (__AFL_LOOP(10000)) {  // Chạy 10000 iterations mỗi fork
+                len = __AFL_FUZZ_TESTCASE_LEN;  // Lấy độ dài input
+                
+                if (len < 1 || len > MAX_INPUT_SIZE) continue;
+                
+                // Copy từ shared memory vào buffer của chúng ta
+                memcpy(input_buf, buf, len);
+                input_buf[len] = '\0';
+                
+                // Parse JSON
+                value = json_parse((json_char*)input_buf, len);
+                
+                if (value != NULL) {
+                        // Process value để trigger các bug
+                        process_value(value, 0);
+                        json_value_free(value);
+                }
         }
 
-        process_value(value, 0);
-
-        json_value_free(value);
-        free(file_contents);
         return 0;
 }

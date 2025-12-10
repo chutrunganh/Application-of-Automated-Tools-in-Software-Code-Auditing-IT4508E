@@ -1,0 +1,4 @@
+fuzzgoat_source_code/AFL_plus_plus/out/*
+fuzzgoat_source_code/Hongfuzz/out/*
+
+.venv/

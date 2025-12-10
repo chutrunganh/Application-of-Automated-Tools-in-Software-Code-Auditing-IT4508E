@@ -5,14 +5,31 @@
 # 🎯 Mục tiêu của dự án:
 
 - Tìm hiểu sơ lược về lý thuyết kiểm thử phần mềm
-- Tìm hiểu cách hoạt động và sử dụng công cụ kiểm thử phần mềm **ESBMC**, **AFL++**, **ASan**. Đối tượng phần mềm được kiểm thử là chương trình C:  [**fuzzgoat**](https://github.com/fuzzstati0n/fuzzgoat)
+- Tìm hiểu cách hoạt động và sử dụng các công cụ kiểm thử phần mềm **ESBMC**, **AFL++**, **HonggFuzz**, **ASan**. Đối tượng phần mềm được kiểm thử là chương trình C:  [**fuzzgoat**](https://github.com/fuzzstati0n/fuzzgoat)
 
 - Phần lý thuyết được trình bày trong file này, còn phần sử dụng các tools được trình bày trong [README_P2](./README_P2.md)
 
+# 🏗️ Cấu trúc dự án
+
+```
+📂
+├── docs         # Yêu cầu dự án, báo cáo, slide trình bày
+├── README.md    # Tổng quan lý thuyết
+├── README_P2.md # Sử dụng và kết quả các công cụ kiểm thử
+│
+└──fuzzgoat_source_code/
+    ├── AFL_plus_plus       # Harness cho AFL++
+    ├── ESBMC               # Harness cho ESBMC
+    ├── HonggFuzz           # Harness cho HonggFuzz
+    ├── fuzzgoat.c          # Mã nguồn chính của fuzzgoat
+    ├── fuzzgoat.h          # Mã nguồn chính của fuzzgoat
+    ├── main.c              # Harness gốc của fuzzgaot viết cho AFL
+    └── fuzzgoatNoVulns.c   # Phiên bản không có lỗ hổng của fuzzgoat
+```
 
 # 1. Kiểm thử phần mềm là gì
 
-Kiểm thử phần mềm là cố gắng tìm ra các lỗi/chứng minh không tồn tại lỗi để đảm bảo phần mềm hoạt động an toàn, đáng tin cậy. Để đảm báo phần mềm được kiểm thử đầy đủ, người ta thường dựa vào các tiêu chí như:
+Kiểm thử phần mềm là cố gắng tìm ra các lỗi/chứng minh không tồn tại lỗi để đảm bảo phần mềm hoạt động an toàn, đáng tin cậy. Để đảm bảo phần mềm được kiểm thử đầy đủ, người ta thường dựa vào các tiêu chí như:
 
 - **Statement coverage** (cấp độ câu lệnh): Kiểm tra xem mỗi câu lệnh trong chương trình được chạy ít nhất một lần, ví dụ với `if (x > 0) { y = z; }`  chỉ cần đảm bảo chạy được câu lệnh `if` và câu lệnh gán `y = z` là được, trường hợp  `x <= 0` không cần xét tới.
 
@@ -30,7 +47,7 @@ Có hai phương pháp kiểm thử chính:
 |---------------|---------------------------------------------------------------------|-----------------------------------------------------------|
 | Cách làm      |  Đánh giá mã nguồn, mã bytecode hoặc mã nhị phân của ứng dụng mà không cần thực thi chương trình. Phương pháp này dựa trên việc xây dựng các mô hình trừu tượng của mã nguồn, chẳng hạn như Cây Cú pháp Trừu tượng (Abstract Syntax Tree - AST) hoặc Đồ thị Luồng Điều khiển (Control Flow Graph - CFG), để tìm kiếm các mẫu mã không an toàn hoặc các vi phạm về logic.  |Các công cụ thực thi chương trình, gửi các đầu vào và quan sát hành vi phản hồi của hệ thống |
 | Độ bao phủ    | Có thể bao phủ tất cả các đường đi và đầu vào có thể có (100% code coverage về mặt lý thuyết)      | Chỉ kiểm tra được các đường đi mà bộ test kích hoạt       |
-| Chứng minh    | Có thể chứng minh không bao giờ xảy ra loại lỗi này bằng cách chứng minh tính đúng dắn của phương trình biến đổi toán học | Không thể chứng minh không thể xảy ra loại lỗi này, chỉ có thể chứng minh phản chứng bằng sự hiện diện của lỗi |
+| Chứng minh    | Có thể chứng minh không bao giờ xảy ra loại lỗi này bằng cách chứng minh tính đúng đắn của phương trình biến đổi toán học | Không thể chứng minh không thể xảy ra loại lỗi này, chỉ có thể chứng minh phản chứng bằng sự hiện diện của lỗi |
 | Kết quả       | Có thể có False Positives (Báo động giả) do báo lỗi ở chỗ thực ra không có lỗi | Không có False Positives, nếu nó báo lỗi (ví dụ: crash) thì đó 100% là lỗi thật |
 
 ## 1.1 Các kỹ thuật trong phân tích tĩnh
@@ -66,19 +83,19 @@ flowchart TD
 
 - **Path Analysis** Kiểm tra các chuỗi lệnh cụ thể trong chương trình để xác định tính khả thi. Mục tiêu là tìm ra các tổ hợp đầu vào có thể kích hoạt các lỗi tiềm ẩn.
 
-- **Information Flow Analysis** Theo dõi sự lan truyền của dữ liệu nhạy cảm hoặc không an toàn. Đảm bảo dữ liệu từ nguồn không tin cậy không bị rò rỉ hoặc bị lạm dụng.
+- **Information Flow Analysis**: Theo dõi sự lan truyền của dữ liệu nhạy cảm hoặc không an toàn. Đảm bảo dữ liệu từ nguồn không tin cậy không bị rò rỉ hoặc bị lạm dụng.
 
-- **Verification & Formal Methods (Kỹ thuật Kiểm chứng và Hình thức)** Sử dụng các phương pháp toán học để chứng minh tính đúng đắn của chương trình. Một số kỹ thuật phổ biến bao gồm:
+- **Verification & Formal Methods (Kỹ thuật Kiểm chứng và Hình thức)**: Sử dụng các phương pháp toán học để chứng minh tính đúng đắn của chương trình. Một số kỹ thuật phổ biến bao gồm:
 
-  - **Type Checking**: Đảm bảo các biến được sử dụng đúng với kiểu dữ liệu đã khai báo. Nó phát hiện lỗi logic về kiểu dữ liệu, ví dụ: gán chuỗi cho một biến kiểu int ngay tại thời điểm biên dịch với các ngôn ngữ là static type checking (C, Java, Rust, ...) hoặc tại runtime với các ngôn ngữ là dynamic type checking (Python, JavaScript, ...).
+  - **Type Checking**: Đảm bảo các biến được sử dụng đúng với kiểu dữ liệu đã khai báo. Nó phát hiện lỗi logic về kiểu dữ liệu, ví dụ: gán chuỗi cho một biến kiểu int ngay tại thời điểm biên dịch với các ngôn ngữ static type checking (C, Java, Rust, ...) hoặc tại runtime với các ngôn ngữ dynamic type checking (Python, JavaScript, ...).
 
-   - **Model Checking**: Xây dựng một mô hình đơn giản hóa của chương trình, ví dụ: một biểu đồ các trạng thái có thể có -> viết một đặc tả là một quy tắc mà chương trình phải tuân theo, ví dụ: "biến lock không bao giờ được hai luồng giữ cùng lúc" -> Công cụ Model Checker sẽ duyệt toàn bộ các trạng thái trong mô hình để xem nó có vi phạm quy tắc không. Công cụ điển hình là **Microsoft SLAM**, **SPIN**.
+   - **Model Checking**: Xây dựng một mô hình đơn giản hóa của chương trình, ví dụ: một biểu đồ các trạng thái có thể có → viết một đặc tả là một quy tắc mà chương trình phải tuân theo, ví dụ: "biến lock không bao giờ được hai luồng giữ cùng lúc" → Công cụ Model Checker sẽ duyệt toàn bộ các trạng thái trong mô hình để xem nó có vi phạm quy tắc không. Công cụ điển hình là **Microsoft SLAM**, **SPIN**.
 
-        ![alt text](image.png)
+        ![alt text](./assets/image.png)
 
-    - **Formal Reasoning** Sử dụng logic toán học để chứng minh các thuộc tính của chương trình, gồm có các phương pháp như:
+    - **Formal Reasoning**: Sử dụng logic toán học để chứng minh các thuộc tính của chương trình, gồm có các phương pháp như:
 
-        - **Hoare Logic**: Sử dụng bộ ba Hoare $P$ | $S$ | $Q$ với $P$ là điều kiện trước, $Q$ là điều kiện sau và $S$ là đoạn mã cần chứng minh. Bộ ba này khẳng định rằng nếu chương trình $S$ bắt đầu với điều kiện $P$ đúng, nó sẽ kết thúc với điều kiện $Q$ đúng. Ví dụ thực tế được dùng trong SPARK Ada.
+        - **Hoare Logic**: Sử dụng bộ ba Hoare {$P$} $S$ {$Q$} với $P$ là điều kiện trước (precondition), $Q$ là điều kiện sau (postcondition) và $S$ là đoạn mã cần chứng minh. Bộ ba này khẳng định rằng nếu chương trình $S$ bắt đầu với điều kiện $P$ đúng, nó sẽ kết thúc với điều kiện $Q$ đúng. Ví dụ thực tế được dùng trong SPARK Ada.
 
         - **Automated Theorem Prover**: Công cụ tự động sử dụng logic (như logic bậc nhất) để chứng minh các định lý về chương trình. Mục tiêu của ATP là chứng minh rằng một khẳng định (định lý) luôn đúng trong mọi trường hợp (tức là luôn hợp lệ theo logic), dựa trên một tập hợp các tiên đề hoặc giả định.
 
@@ -129,26 +146,24 @@ Wikipedia
 - **Fuzzing**: Sinh đầu vào ngẫu nhiên hoặc biến đổi từ một đầu vào ban đầu, đẩy các đầu vào này cho chương trình mục tiêu, quan sát phản hồi (crash, lỗi, treo) để tìm lỗi.
 
 
-    ![alt text](image-1.png)
+    ![alt text](./assets/image-1.png)
 
 
 Cụ thể hơn vầ các loại fuzzing:
 
-1. **Dumb/random fuzzing/Black-box** (ví dụ công cụ Radamsa): Tạo các đầu vào ngẫu nhiên hoàn toàn mà không có cấu trúc hay định dạng cụ thể. Hiệu quả thường thấp và chỉ dò ra các lỗi cú pháp, không dò được các lỗi nghiệp vụ phức tạp. Có thể thử:
+1. **Dumb/Random Fuzzing/Black-box** (ví dụ công cụ Radamsa): Tạo các đầu vào ngẫu nhiên hoàn toàn mà không có cấu trúc hay định dạng cụ thể. Hiệu quả thường thấp và chỉ dò ra các lỗi cú pháp, không dò được các lỗi nghiệp vụ phức tạp. Có thể thử:
     - Input rất dài, rất ngắn, để trống
     - Các giá trị biên, giá trị âm, giá trị cực lớn
     - Các ký tự đặc biệt như null, newline, %s, %x, ;, ', /, v.v hay các từ ngữ đặc biệt theo ứng dụng như SQL keywords, HTML tags, script tags, v.v
 
-2. **Mutation-based fuzzing**: Bắt đầu từ các đầu vào hợp lệ và thực hiện các biến đổi (mutation) nhỏ để tạo ra các đầu vào mới. Hiệu quả hơn basic fuzzing vì giữ được cấu trúc cơ bản của dữ liệu. Ví dụ:
+2. **Mutation-based Fuzzing**: Bắt đầu từ các đầu vào hợp lệ và thực hiện các biến đổi (mutation) nhỏ để tạo ra các đầu vào mới. Hiệu quả hơn basic fuzzing vì giữ được cấu trúc cơ bản của dữ liệu. Ví dụ:
     - Thay đổi một số byte trong file ảnh hợp lệ để tạo ra file ảnh mới
     - Thêm, xóa, hoặc thay thế các trường trong file JSON hoặc XML hợp lệ
     - Thay đổi các tham số URL trong các request HTTP hợp lệ
 
-3. **Generation-based fuzzing/grammar-based/model-based**: Tạo các đầu vào từ đầu dựa trên một mô hình hoặc định dạng cụ thể(vd như cấu trúc gói tin, cấu trúc request). Cách thức: Tạo ra các gói tin "hơi sai lệch" (malformed), sai độ dài, hoặc rơi vào các trường hợp biên (corner cases) để kiểm tra xem hệ thống có xử lý lỗi đúng cách hay bị crash. Hiệu quả cao nhất vì có thể kiểm soát cấu trúc và nội dung của dữ liệu. Tuy nhiên cần tinh chỉnh/ tạo fuzzer riêng. Thường dùng cho các giao thức giao tiếp (như GSM, SMS).
+3. **Generation-based Fuzzing/Grammar-based/Model-based**: Tạo các đầu vào từ đầu dựa trên một mô hình hoặc định dạng cụ thể (ví dụ như cấu trúc gói tin, cấu trúc request). Cách thức: Tạo ra các gói tin "hơi sai lệch" (malformed), sai độ dài, hoặc rơi vào các trường hợp biên (corner cases) để kiểm tra xem hệ thống có xử lý lỗi đúng cách hay bị crash. Hiệu quả cao nhất vì có thể kiểm soát cấu trúc và nội dung của dữ liệu. Tuy nhiên cần tinh chỉnh/tạo fuzzer riêng. Thường dùng cho các giao thức giao tiếp (như GSM, SMS).
 
-4. **Evolutionary / Greybox** (Tiến hóa - VD: công cụ AFL): Công cụ sử dụng một lượng nhỏ thông tin từ chương trình (thường là code coverage thu được qua instrumentation) để dẫn dắt quá trình sinh dữ liệu. Nếu một đầu vào kích hoạt một nhánh mã mới, nó sẽ được giữ lại làm hạt giống (seed) cho thế hệ tiếp theo.
-
-
+4. **Evolutionary/Greybox** (Tiến hóa - VD: công cụ AFL): Công cụ sử dụng một lượng nhỏ thông tin từ chương trình (thường là code coverage thu được qua instrumentation) để dẫn dắt quá trình sinh dữ liệu. Nếu một đầu vào kích hoạt một nhánh mã mới, nó sẽ được giữ lại làm hạt giống (seed) cho thế hệ tiếp theo.
 
 5. **Whitebox** (VD: SAGE): Dùng kỹ thuật Symbolic Execution để phân tích mã nguồn, tính toán chính xác giá trị input cần thiết để đi vào các nhánh code khó.
 
@@ -162,9 +177,9 @@ Cụ thể hơn vầ các loại fuzzing:
 
 ### Cppcheck
 
-![alt text](image-12.png)
+![alt text](./assets/image-12.png)
 
-Quy trình phân tích của CppCheck bao gồm các bước sau:
+Quy trình phân tích của Cppcheck bao gồm các bước sau:
 
 ```mermaid
 flowchart LR
@@ -205,7 +220,7 @@ int main() {
 
 1. **Preprocessing**
 
-Cppcheck xử lý các chỉ thị tiền xử lý (preprocessor directives) như #include, #define, v.v. để tạo ra mã nguồn thô. Tuy nhiên, thày vì giống như các trình biên dịch thông thường (GCC/Clang) chỉ biên dịch một cấu hình duy nhất (dựa trên các flag -D), Cppcheck cố gắng đạt độ bao phủ tối đa bằng cách sử dụngĐa cấu hình (Multi-configuration). 
+Cppcheck xử lý các chỉ thị tiền xử lý (preprocessor directives) như #include, #define, v.v. để tạo ra mã nguồn thô. Tuy nhiên, thay vì giống như các trình biên dịch thông thường (GCC/Clang) chỉ biên dịch một cấu hình duy nhất (dựa trên các flag -D), Cppcheck cố gắng đạt độ bao phủ tối đa bằng cách sử dụng Đa cấu hình (Multi-configuration). 
 
 Cụ thể, Cppcheck sẽ cố gắng phân tích tất cả các nhánh `#ifdef`, `#ifndef`, `#if`, `#elif`, `#else`, `#endif`. Ví dụ code có  `#ifdef DEBUG`, Cppcheck sẽ chạy phân tích 2 lần: một lần với `DEBUG` được định nghĩa, và một lần không. Điều này giúp phát hiện lỗi nằm sâu trong các đoạn code debug hoặc code dành riêng cho nền tảng mà trình biên dịch thường bỏ qua nếu không đúng flag.
 
@@ -259,7 +274,7 @@ Kết quả: Một danh sách liên kết đôi các token. Việc sử dụng d
 
 3. **Simplification & Normalization**
 
-Cppchack viết lại code về một dạng chuẩn đơn giản hơn để giảm bớt độ phức tạp cho các thuật toán kiểm tra.
+Cppcheck viết lại code về một dạng chuẩn đơn giản hơn để giảm bớt độ phức tạp cho các thuật toán kiểm tra.
 
 Nó thực hiện hàng ngàn phép biến đổi, ví dụ:
 
@@ -366,7 +381,7 @@ Line 28
   20 always 20
 ```
 
-*CppCheck được thiết kế là một công cụ với triết lý thiên về **unsound**. Trong lý thuyết phân tích tĩnh, một công cụ **sound** đảm bảo tìm thấy tất cả các lỗi thuộc một lớp nhất định (nhưng thường kèm theo nhiều cảnh báo sai). CppCheck hy sinh tính đầy đủ này để đổi lấy tốc độ và độ chính xác của các cảnh báo. Nó đưa ra các giả định đơn giản hóa về các lời gọi hàm và biến ngoại lai để giảm nhiễu.*
+*Cppcheck được thiết kế là một công cụ với triết lý thiên về **unsound**. Trong lý thuyết phân tích tĩnh, một công cụ **sound** đảm bảo tìm thấy tất cả các lỗi thuộc một lớp nhất định (nhưng thường kèm theo nhiều cảnh báo sai). Cppcheck hy sinh tính đầy đủ này để đổi lấy tốc độ và độ chính xác của các cảnh báo. Nó đưa ra các giả định đơn giản hóa về các lời gọi hàm và biến ngoại lai để giảm nhiễu.*
 
 6. **Checkers**
 
@@ -407,7 +422,7 @@ sample.c:15:12: style: Variable 'buf[x]' is assigned a value that is never used.
 
 ## 2.2 ESBMC
 
-![alt text](image-3.png)
+![alt text](./assets/image-3.png)
 
 ### Cơ sở lý thuyết
 
@@ -497,10 +512,10 @@ Tuy nhiên khi chạy, nếu người dùng chỉ dùng `--unwind 2` thì vòng 
 > [!TIP]
 > Dùng thêm flag `--unwinding-assertions` thì ESBMC sẽ cảnh báo nếu unroll chưa hết vòng lặp.
 
-Như vậy công thức toán được tạo ra khi này khi đưa vào SMT solver nếu:
+Như vậy công thức toán được tạo ra khi này, khi đưa vào SMT solver nếu:
 
-- Tìm được nghiệm (tức có lỗi) -> chương trình có lỗi
-- Không tìm được nghiệm -> **không chắc** chương trình đúng, vì có thể lỗi xảy ra sau k lần unroll
+- Tìm được nghiệm (tức có lỗi) → chương trình có lỗi
+- Không tìm được nghiệm → **không chắc** chương trình đúng, vì có thể lỗi xảy ra sau k lần unroll
 
 
 Để giải quyết điều này, ESBMC có thêm một kỹ thuật gọi là **k-induction**. Cụ thể, nó là mở rộng của BMC để chứng minh **an toàn tuyệt đối**, gồm 2 bước:
@@ -512,7 +527,7 @@ Như vậy công thức toán được tạo ra khi này khi đưa vào SMT solv
 Thêm flag `--k-induction` để bật tính năng này trong ESBMC.
 
 
-Tuy nhiên việc dùng tính năng `--k-induction` này sẽ làm tăng đáng kể thời gian chạy của ESBMC và tiêu tốn rất nhiều tài nguyên. Có môt tùy chọn khác có thể sử dụng để đạt chứng minh gần tương đương là `--incremental-bmc`. 
+Tuy nhiên việc dùng tính năng `--k-induction` này sẽ làm tăng đáng kể thời gian chạy của ESBMC và tiêu tốn rất nhiều tài nguyên. Có một tùy chọn khác có thể sử dụng để đạt chứng minh gần tương đương là `--incremental-bmc`. 
 
 Cụ thể: ESBMC sẽ bắt đầu kiểm tra chương trình với số bước lặp (loop unwind) nhỏ (ví dụ k=1). Nếu không tìm thấy lỗi, nó tự động tăng k lên (k=2, k=3,...) và kiểm tra tiếp tới khi phát hiện lỗi thì thôi.
 
@@ -523,7 +538,7 @@ Cụ thể: ESBMC sẽ bắt đầu kiểm tra chương trình với số bướ
 
 ### Quá trình hoạt động của ESBMC
 
-Đó là về khía cạnh lý thuyết, về mặt implementation, ESBMC hoạt động theo các giai đoạn sau:
+Đó là về khía cạnh lý thuyết. Về mặt implementation, ESBMC hoạt động theo các giai đoạn sau:
 
 ```mermaid
 graph LR
@@ -560,7 +575,7 @@ ESBMC bắt đầu bằng cách đọc mã nguồn C sử dụng Clang (một tr
 
 Kết quả là một **AST** (Abstract Syntax Tree - Cây cú pháp trừu tượng). Đây là cấu trúc dạng cây biểu diễn code để máy tính hiểu ngữ pháp đâu là biến, đâu là hàm, đâu là lệnh if. Sau đó, ESBMC chuyển đổi AST của Clang sang định dạng nội bộ của riêng nó (**ESBMC AST**).
 
-minh hoạ dùng command này để in AST của Clang:
+Minh họa dùng command này để in AST của Clang:
 
 ```bash
 clang -Xclang -ast-dump -c test.c
@@ -637,7 +652,7 @@ main (c:@F@main):
 
 **3. Thực thi Ký hiệu (Symbolic Execution) & SSA**
 
-Thay vì chạy code với giá trị cụ thể, ESBMC thực hiện Symbolic Execution. Ví dụ, `x = a + b` sẽ được lưu dưới dạng công thức toán học thay vì con số. Nó chuyển code sang dạng SSA (Static Single Assignment). Trong SSA, mỗi biến chỉ được gán giá trị một lần duy nhất. Nếu biến x thay đổi giá trị, nó sẽ tạo ra phiên bản mới x_1, x_2 giúp việc truy vết trở nên khả thi. 
+Thay vì chạy code với giá trị cụ thể, ESBMC thực hiện Symbolic Execution. Ví dụ, `x = a + b` sẽ được lưu dưới dạng công thức toán học thay vì con số. Nó chuyển code sang dạng SSA (Static Single Assignment). Trong SSA, mỗi biến chỉ được gán giá trị một lần duy nhất. Nếu biến x thay đổi giá trị, nó sẽ tạo ra phiên bản mới x_1, x_2, giúp việc truy vết trở nên khả thi. 
 
 Tại bước này, các vòng lặp cũng được **unrolled** một số lần (độ sâu) nhất định (gọi là bound k). Ví dụ, nếu `k = 10`, vòng lặp `while` sẽ được mở thành 10 câu lệnh `if` lồng nhau.
 
@@ -648,8 +663,8 @@ x = 5;      // x_1
 x = x + 1;  // x_2
 ```
 
-ESBMC sẽ hiểu thành công thức: x<sub>1</sub>=5, 
-x<sub>2</sub>=x<sub>1</sub>+1
+ESBMC sẽ hiểu thành công thức: x<sub>1</sub> = 5, 
+x<sub>2</sub> = x<sub>1</sub> + 1
 
 Minh họa SSA dùng lệnh ESBMC:
 
@@ -675,7 +690,7 @@ Sau đó ESBMC gửi công thức:
 
 > $ψ_k = C_k ∧ ¬P$ 
 
-này đến một Bộ giải SMT. Ý nghĩa của công thức này là Liệu có tồn tại một tập hợp các giá trị đầu vào và một lộ trình thực thi k bước ($C_k$​) mà đồng thời dẫn đến trạng thái lỗi ($¬P$) hay không?
+này đến một Bộ giải SMT. Ý nghĩa của công thức này là: Liệu có tồn tại một tập hợp các giá trị đầu vào và một lộ trình thực thi k bước ($C_k$) mà đồng thời dẫn đến trạng thái lỗi ($¬P$) hay không?
 
 Minh họa cách xem: Để xem các công thức toán học mà nó gửi cho SMT solver:
     
@@ -716,9 +731,9 @@ esbmc test.c --smt-formula-only
 
 ESBMC sử dụng các SMT Solver để giải công thức $ψ_k$. Bộ giải sẽ trả về:
 
-- Nếu $ψ_k$​ là Thỏa mãn: SMT solver trả lời `VERIFICATION FAILED` và cung cấp một ví dụ phản chứng là một tập hợp các giá trị cụ thể cho các biến đầu vào và một chuỗi các bước thực thi từ đó có thể xảy ra lỗi. Chương trình có lỗi ở độ sâu $≤ k$.
+- Nếu $ψ_k$ là **Thỏa mãn**: SMT solver trả lời `VERIFICATION FAILED` và cung cấp một ví dụ phản chứng là một tập hợp các giá trị cụ thể cho các biến đầu vào và một chuỗi các bước thực thi từ đó có thể xảy ra lỗi. Chương trình có lỗi ở độ sâu $≤ k$.
 
-- Nếu $ψ_k$​ là Không Thỏa mãn: SMT solver trả lời `VERIFICATION SUCCESSFUL`. Điều này có nghĩa là không thể xảy ra lỗi trong $k$ bước thực thi đầu tiên.
+- Nếu $ψ_k$ là **Không Thỏa mãn**: SMT solver trả lời `VERIFICATION SUCCESSFUL`. Điều này có nghĩa là không thể xảy ra lỗi trong $k$ bước thực thi đầu tiên.
 
 Để minh họa chạy lệnh:
 
@@ -763,12 +778,12 @@ ESBMC hỗ trợ nhiều SMT Solver khác nhau, bao gồm:
 > [!TIP]
 > Ngoài ra, ESBMC còn có khả năng tự động sửa mã nguồn dựa vào các lỗi đã dò tìm được bằng cách sử dụng thêm công cụ [**ESBMC-AI**](https://github.com/esbmc/esbmc-ai). Đây là một công cụ bổ sung cho ESBMC, sử dụng các kỹ thuật LLM để tự động đọc các Counter Example trong trường hợp VERIFICATION FAILED do ESBMC tạo ra và từ đó sửa lỗi cho mã nguồn gốc.
 
-![alt text](image-8.png)
+![alt text](./assets/image-8.png)
 
 
 ## 2.2 AFL++
 
-![alt text](image-2.png)
+![alt text](./assets/image-2.png)
 
 
 ### Quá trình hoạt động của AFL++
@@ -777,14 +792,14 @@ ESBMC hỗ trợ nhiều SMT Solver khác nhau, bao gồm:
 
 Nếu một input mới làm chương trình chạy vào một nhánh code chừa từng đi qua trước đây, AFL sẽ coi đó là một **interesting input** và sẽ giữ lại để khai thác tiếp. Cụ thể:
 
-![alt text](image-14.png)
+![alt text](./assets/image-14.png)
 
 *Fig 1 Quy trình hoạt động của AFL++*
 
-Với các input trong danh sách, mỗi input được chạy, AFL sẽ ghi lại các nhánh được chạy. Nó làm vậy bằng cách theo dõi các lệnh Jump trong mã ASM. 
+Với các input trong danh sách, mỗi input được chạy, AFL++ sẽ ghi lại các nhánh được chạy. Nó làm vậy bằng cách theo dõi các lệnh Jump trong mã ASM. 
 
 
-Các nhánh mà input đi qua được biểu diễn bằng một bản đồ bitmap (trong AFL thì bản đồ này có kích thước **64KB**):
+Các nhánh mà input đi qua được biểu diễn bằng một bản đồ bitmap (trong AFL++ thì bản đồ này có kích thước **64KB**):
 
 > [!NOTE]
 > Kích thước 64KB để bảng đủ nhỏ để nằm trong L2 Cache của CPU, giúp truy cập nhanh hơn trong quá trình fuzzing liên tục.
@@ -793,7 +808,7 @@ Các nhánh mà input đi qua được biểu diễn bằng một bản đồ bi
 Lưu lại nếu độ bao phủ tăng.
 - Các dấu tích (✓) trong hình (như ✓1, ✓2, ✓3) có nghĩa là: "À, trong lần chạy này, code đã thực hiện bước nhảy đó rồi".
 
-Để có thể ghi lại các bước nhảy vào bản đồ bitmap, AFL sử dụng một kỹ thuật gọi là **instrumentation** (chèn mã theo dõi) vào mã nguồn hoặc mã máy của chương trình mục tiêu. AFL dùng trình biên dịch riêng như `afl-gcc`, `afl-clang` hoặc `afl-clang-fast` (sử dụng LLVM Pass) để chèn các đoạn mã assembly nhỏ (**trampolines**) theo dõi vào đầu mỗi khối cơ bản (basic block - một đoạn mã không có lệnh rẽ nhánh). Công thức cập nhật trạng thái của AFL++ là:
+Để có thể ghi lại các bước nhảy vào bản đồ bitmap, AFL++ sử dụng một kỹ thuật gọi là **instrumentation** (chèn mã theo dõi) vào mã nguồn hoặc mã máy của chương trình mục tiêu. AFL++ dùng trình biên dịch riêng như `afl-gcc`, `afl-clang` hoặc `afl-clang-fast` (sử dụng LLVM Pass) để chèn các đoạn mã assembly nhỏ (**trampolines**) theo dõi vào đầu mỗi khối cơ bản (basic block - một đoạn mã không có lệnh rẽ nhánh). Công thức cập nhật trạng thái của AFL++ là:
 
 > Map[Current_Location⊕(Previous_Location>>1)]++
 
@@ -815,18 +830,18 @@ Với:
 
 *Mỗi basic code block được AFL gán một giá trị ngẫu nhiên cố định tại thời điểm biên dịch (COMPILE_TIME_RANDOM_FOR_THIS_CODE_BLOCK) để xác định vị trí hiện tại (Current_Location).*
 
-![alt text](image-16.png)
+![alt text](./assets/image-16.png)
 
-*Nếu không có source (chỉ có file .exe): AFL dùng chế độ **QEMU mode** (chạy giả lập) để theo dõi, nhưng sẽ chậm hơn.*
+*Nếu không có source (chỉ có file .exe): AFL++ dùng chế độ **QEMU mode** (chạy giả lập) để theo dõi, nhưng sẽ chậm hơn.*
 
-Đó là cách AFL++ theo dõi chương trình  mục tiêu để tối ưu hóa độ bao phủ mã trong quá trình fuzzing. Việc tối ưu này được thực hiện thông qua Giải Thuật Di Truyền (Genetic Algorithm)
+Đó là cách AFL++ theo dõi chương trình mục tiêu để tối ưu hóa độ bao phủ mã trong quá trình fuzzing. Việc tối ưu này được thực hiện thông qua Giải Thuật Di Truyền (Genetic Algorithm).
 
 
 #### Giải Thuật Di Truyền (Genetic Algorithm)
 
-![alt text](image-4.png)
+![alt text](./assets/image-4.png)
 
-1. AFL++ quản lý một hàng đợi các đầu vào interesting inputs. Nó chọn một đầu vào từ hàng đợi, ưu tiên các đầu vào nhỏ và chạy nhanh, ví dụ chuỗi `Hello` -> Chương trình chạy: Dòng 1 -> 6 -> 9 -> 10 -> 15 (xem Fig 1) => AFL đánh dấu các ô tương ứng trên Bitmap.
+1. AFL++ quản lý một hàng đợi các đầu vào interesting inputs. Nó chọn một đầu vào từ hàng đợi, ưu tiên các đầu vào nhỏ và chạy nhanh, ví dụ chuỗi `Hello` → Chương trình chạy: Dòng 1 → 6 → 9 → 10 → 15 (xem Fig 1) ⇒ AFL++ đánh dấu các ô tương ứng trên Bitmap.
 
 2. AFL tạo ra Input 2 (Mutation): Sửa đổi interesting input vừa rồi bằng cách:
 
@@ -846,21 +861,21 @@ Với:
 
     - **MOpt**: AFL++ còn tích hợp MOpt, một trình đột biến dựa trên học máy (meta-heuristic mutator) để tối ưu hóa việc lựa chọn các đột biến.
 
-    Ví dụ `Hello` thành `Hello\0`  -> Chương trình chạy đến dòng 5: JZ 7 (Jump If Zero). Do có ký tự \0, điều kiện thỏa mãn => Chương trình nhảy sang Dòng 7: arraycopy(...).
+    Ví dụ `Hello` thành `Hello\0`  → Chương trình chạy đến dòng 5: JZ 7 (Jump If Zero). Do có ký tự \0, điều kiện thỏa mãn ⇒ Chương trình nhảy sang Dòng 7: arraycopy(...).
 
-3. Phản hồi:  Sau khi chạy, nếu bitmap coverage hiển thị một cạnh mới hoặc số lần thực thi cạnh thay đổi đáng kể, đầu vào đó được coi là "fittest" và được thêm vào hàng đợi để tiếp tục đột biến. 
+3. Phản hồi: Sau khi chạy, nếu bitmap coverage hiển thị một cạnh mới hoặc số lần thực thi cạnh thay đổi đáng kể, đầu vào đó được coi là "fittest" và được thêm vào hàng đợi để tiếp tục đột biến. 
 
-    Ví dụ AFL thấy một bước nhảy từ 5 -> 7 => AFL tra vào Bitmap: "Ô đại diện cho bước nhảy 5->7 chưa từng được đánh dấu trước đây" => Input 2 đã khám phá ra vùng đất mới (code mới) => Lưu Input 2 lại vào hàng đợi để dùng làm hạt giống lai tạo ra các input tiếp theo. Các input tiếp theo được tạo mới theo Mutation Strategies như ở bước 2.
+    Ví dụ AFL++ thấy một bước nhảy từ 5 → 7 ⇒ AFL++ tra vào Bitmap: "Ô đại diện cho bước nhảy 5→7 chưa từng được đánh dấu trước đây" ⇒ Input 2 đã khám phá ra vùng đất mới (code mới) ⇒ Lưu Input 2 lại vào hàng đợi để dùng làm hạt giống lai tạo ra các input tiếp theo. Các input tiếp theo được tạo mới theo Mutation Strategies như ở bước 2.
 
 4. Kết quả: AFL++ lặp lại quá trình này liên tục, chạy vô tận đến khi người dùng dừng lại. Nếu trong quá trình chạy, nếu chương trình crash (sự cố) hoặc treo (hangs), AFL++ sẽ lưu đầu vào đó lại như một ví dụ phản chứng (counterexample).
 
 #### Cách AFL++ tối ưu hiệu năng
 
-Do cần test với số lượng các input,  AFL không chạy lại chương trình từ đầu mỗi lần cho mỗi input, mà nó sử dụng một kỹ thuật gọi là **fork server**. Quy tình đầy đủ của AFL là:
+Do cần test với số lượng lớn các input, AFL++ không chạy lại chương trình từ đầu mỗi lần cho mỗi input, mà nó sử dụng một kỹ thuật gọi là **fork server**. Quy trình đầy đủ của AFL++ là:
 
-1. AFL khởi động chương trình mục tiêu một lần duy nhất, vd như khởi chạy hàm `main()`, tạo ra một tiến trình cha (parent process). Bắt đầu với các seed inputs
+1. AFL++ khởi động chương trình mục tiêu một lần duy nhất, ví dụ như khởi chạy hàm `main()`, tạo ra một tiến trình cha (parent process). Bắt đầu với các seed inputs.
 
-2. Mỗi khi cần test một input mới, AFL sử dụng hệ thống gọi `fork()` để tạo ra một tiến trình con (child process) từ tiến trình cha. Tiến trình con này sẽ thừa hưởng toàn bộ trạng thái bộ nhớ của tiến trình cha tại thời điểm fork. AFL từ input ban đầu sẽ tạo ra các input mới bằng cách đột biến (mutation) và gửi chúng vào tiến trình con này để chạy thử. (bit flips, tăng giảm số nguyên, xóa block...).
+2. Mỗi khi cần test một input mới, AFL++ sử dụng hệ thống gọi `fork()` để tạo ra một tiến trình con (child process) từ tiến trình cha. Tiến trình con này sẽ thừa hưởng toàn bộ trạng thái bộ nhớ của tiến trình cha tại thời điểm fork. AFL++ từ input ban đầu sẽ tạo ra các input mới bằng cách đột biến (mutation) và gửi chúng vào tiến trình con này để chạy thử (bit flips, tăng giảm số nguyên, xóa block...).
 
 3. Tiến trình con sẽ chạy chương trình mục tiêu với input mới, trong khi tiến trình cha vẫn giữ nguyên trạng thái ban đầu, sẵn sàng để fork ra các tiến trình con tiếp theo.
 
@@ -879,13 +894,13 @@ afl-fuzz -i ./in_seeds -o ./out -M main0 -- ./target_binary @@
 ./afl-fuzz -i ./in_seeds -o ./out -S secondary2 -- ./target_binary @@
 ```
 
-Main instance có nhiệm vụ làm deterministic checks. Secondary sẽ chỉ làm mutation ngẫu nhiên, không làm deterministic trimming như main. Chúng cũng sẽ đồng bộ testcases mới từ sync dir (từ các instance khác) định kỳ.
+Main instance có nhiệm vụ làm deterministic checks. Secondary sẽ chỉ làm mutation ngẫu nhiên, không làm deterministic trimming như main. Chúng cũng sẽ đồng bộ test cases mới từ sync dir (từ các instance khác) định kỳ.
 
-## 2.3 HongFuzz
+## 2.3 HonggFuzz
 
-![alt text](image-11.png)
+![alt text](./assets/image-11.png)
 
-**HongFuzz** là một công cụ fuzzing hiện đại, có cơ chế hoạt động tương tự như AFL++, nhưng cải tiến nhằm tăng hiệu suất và khả năng phát hiện lỗi. Dưới đây là một số điểm nổi bật về cách hoạt động của HongFuzz:
+**HonggFuzz** là một công cụ fuzzing hiện đại, có cơ chế hoạt động tương tự như AFL++, nhưng cải tiến nhằm tăng hiệu suất và khả năng phát hiện lỗi. Dưới đây là một số điểm nổi bật về cách hoạt động của HonggFuzz:
 
 ### Khác biệt trong quản lý tiến trình
 
@@ -895,20 +910,19 @@ Main instance có nhiệm vụ làm deterministic checks. Secondary sẽ chỉ l
 
 ### Khác biệt trong cơ chế theo dõi độ bao phủ mã
 
+Trong khi AFL++ dựa vào việc theo dõi bằng phần mềm (chèn mã theo dõi vào mã nguồn hoặc mã máy để ghi lại các nhánh được thực thi), HonggFuzz cung cấp nhiều chế độ thu thập vùng phủ mã khác nhau, bao gồm cả việc sử dụng các tính năng **phần cứng** của CPU để tối ưu hiệu suất, cụ thể là **Intel Processor Trace (PT)** và **Branch Trace Store (BTS)**.
 
-Trong khi AFL++ dựa vào việc theo dõi bằng phần mềm (chèn mã theo dõi vào mã nguồn hoặc mã máy để ghi lại các nhánh được thực thi), Honggfuzz cung cấp nhiều chế độ thu thập vùng phủ mã khác nhau, bao gồm cả việc sử dụng các tính năng **phần cứng** của CPU để tối ưu hiệu suất, cụ thể là **Intel Processor Trace (PT)** và **Branch Trace Store (BTS)**.
-
-- **Intel PT** là một tính năng phần cứng cho phép ghi lại luồng thực thi của phần mềm với chi phí hiệu năng cực thấp. Honggfuzz sử dụng Intel PT để tái dựng lại đường dẫn thực thi của một tệp nhị phân mà không cần biên dịch lại mã nguồn. Điều này cho phép thực hiện fuzzing theo dõi vùng phủ đối với các ứng dụng mã nguồn đóng một cách hiệu quả. Mặc dù AFL++ cũng cung cấp chế độ QEMU hoặc Unicorn để giả lập và lấy thông tin vùng phủ cho các tệp nhị phân, phương pháp này chậm hơn nhiều. Với việc sử dụng Intel PT, Honggfuzz có thể đạt được tốc độ thực thi file gần như khi thực thi native, trong khi vẫn thu thập được dữ liệu vùng phủ chính xác. Một vài thử nghiệm cho thấy thời gian thực thi thường nhanh hơn khoảng 2-10 lần so với QEMU mode của AFL++.
+- **Intel PT** là một tính năng phần cứng cho phép ghi lại luồng thực thi của phần mềm với chi phí hiệu năng cực thấp. HonggFuzz sử dụng Intel PT để tái dựng lại đường dẫn thực thi của một tệp nhị phân mà không cần biên dịch lại mã nguồn. Điều này cho phép thực hiện fuzzing theo dõi vùng phủ đối với các ứng dụng mã nguồn đóng một cách hiệu quả. Mặc dù AFL++ cũng cung cấp chế độ QEMU hoặc Unicorn để giả lập và lấy thông tin vùng phủ cho các tệp nhị phân, phương pháp này chậm hơn nhiều. Với việc sử dụng Intel PT, HonggFuzz có thể đạt được tốc độ thực thi file gần như khi thực thi native, trong khi vẫn thu thập được dữ liệu vùng phủ chính xác. Một vài thử nghiệm cho thấy thời gian thực thi thường nhanh hơn khoảng 2-10 lần so với QEMU mode của AFL++.
 
 
-- **Branch Trace Store (BTS)** là một tính năng phần cứng khác của Intel cho phép ghi lại các nhánh đã được thực thi một cách hiệu quả. Honggfuzz có thể sử dụng BTS để thu thập thông tin vùng phủ mã với chi phí hiệu năng thấp hơn so với việc chèn mã theo dõi truyền thống. Tuy nhiên, BTS có một số hạn chế về dung lượng bộ đệm và độ phức tạp trong việc giải mã dữ liệu, nên nó thường được sử dụng như một phương pháp bổ sung thay vì thay thế hoàn toàn cho Intel PT.
+- **Branch Trace Store (BTS)** là một tính năng phần cứng khác của Intel cho phép ghi lại các nhánh đã được thực thi một cách hiệu quả. HonggFuzz có thể sử dụng BTS để thu thập thông tin vùng phủ mã với chi phí hiệu năng thấp hơn so với việc chèn mã theo dõi truyền thống. Tuy nhiên, BTS có một số hạn chế về dung lượng bộ đệm và độ phức tạp trong việc giải mã dữ liệu, nên nó thường được sử dụng như một phương pháp bổ sung thay vì thay thế hoàn toàn cho Intel PT.
 
 ### Chế độ Persistent Mode
 
 Persistent mode là kỹ thuật fuzzing trong đó tiến trình đích không bị khởi động lại sau mỗi lần thử. Thay vào đó, vòng lặp fuzzing diễn ra bên trong tiến trình, liên tục reset trạng thái của hàm cần kiểm thử và nạp dữ liệu mới. Kỹ thuật này giúp tăng tốc độ thực thi từ vài trăm lần/giây lên hàng trăm nghìn lần/giây.
 
 
-Honggfuzz sử dụng một API riêng cho chế độ này, tiêu biểu là macro `HF_ITER`. Chương trình đích sẽ định nghĩa một vòng lặp gọi tới `HF_ITER(&buf, &len)`. Honggfuzz sẽ can thiệp (hook) vào biểu tượng này. Khi được gọi, fuzzer sẽ điền dữ liệu đã đột biến vào bộ nhớ đệm buf và trả quyền điều khiển cho chương trình đích.
+HonggFuzz sử dụng một API riêng cho chế độ này, tiêu biểu là macro `HF_ITER`. Chương trình đích sẽ định nghĩa một vòng lặp gọi tới `HF_ITER(&buf, &len)`. HonggFuzz sẽ can thiệp (hook) vào biểu tượng này. Khi được gọi, fuzzer sẽ điền dữ liệu đã đột biến vào bộ nhớ đệm buf và trả quyền điều khiển cho chương trình đích.
 
 
 ```c
@@ -924,7 +938,7 @@ int main(void) {
 ```
 
 
-Phương pháp này cho phép truyền dữ liệu trực tiếp trong không gian bộ nhớ của tiến trình, giảm thiểu độ trễ so với việc truyền qua pipe hay shared memory
+Phương pháp này cho phép truyền dữ liệu trực tiếp trong không gian bộ nhớ của tiến trình, giảm thiểu độ trễ so với việc truyền qua pipe hay shared memory.
 
 Trong khi đó, AFL++ triển khai Persistent Mode thông qua macro `__AFL_FUZZ_INIT` và `__AFL_LOOP`. 
 
@@ -941,7 +955,7 @@ Trong chế độ persistent thuần túy, nó sử dụng tín hiệu và bộ 
 
 Tóm tắt lại:
 
-| Tính năng | Honggfuzz | AFL++ |
+| Tính năng | HonggFuzz | AFL++ |
 |-----------|-----------|-------|
 |Mô hình thực thi|Đa luồng hoặc Đa tiến trình|Forkserver (Dựa trên tiến trình)|
 |API Persistent Mode|HF_ITER|__AFL_LOOP / __AFL_FUZZ_INIT|
@@ -950,22 +964,106 @@ Tóm tắt lại:
 
 ## 2.4 AddressSanitizer (ASan)
 
-![alt text](image-5.png)
+![alt text](./assets/image-5.png)
 
 
 Trong môi trường C/C++, một chương trình có thể đọc **vượt quá giới hạn bộ đệm một vài byte** mà không gây ra crash ngay lập tức (do vùng nhớ lân cận chưa được sử dụng, do OS cấp phát thêm bộ nhớ một cách thụ động, ...), dẫn đến việc các lỗi này bị bỏ qua bởi các fuzzer thông thường. Để khắc phục, công nghệ Instrumentation (gắn mã theo dõi) được sử dụng, điển hình là **AddressSanitizer (ASan)**.
 
-ASan hoạt động dựa trên hai cơ chế chính:
+AddressSanitizer là một runtime memory error detector được tích hợp trong LLVM/Clang và GCC. Mục tiêu của ASan là phát hiện các lỗi truy cập bộ nhớ nguy hiểm thường gặp trong C/C++ như buffer overflow, use-after-free, stack overflow, heap overflow, và vùng bộ nhớ không hợp lệ.
 
-![alt text](image-7.png)
+ASan thường không được dùng như một tool độc lập do nó không thể chủ động tìm kiếm, trigger các lỗi (do nó nhận đầu vào cố định từ người dùng) mà nó chỉ có thể thông báo lỗi của chương trình khi nó thực sự xảy ra trên bộ nhớ. Do đó ASan thường được kết hợp vào quá trình fuzzing, CI/CD hoặc debug với các công cụ khác để tăng tính chính xác của các công cụ này trong việc phát hiện lỗi bộ nhớ.
 
-- **Shadow Memory**: ASan dành riêng một vùng bộ nhớ ảo để theo dõi trạng thái của bộ nhớ ứng dụng. Tỷ lệ ánh xạ thường là 8:1, nghĩa là 8 byte bộ nhớ ứng dụng được mô tả bởi 1 byte shadow memory. Giá trị của byte shadow sẽ cho biết trạng thái của 8 byte kia (ví dụ: 0 là hợp lệ, các giá trị âm biểu thị vùng bị cấm như đã giải phóng, vùng đệm stack, v.v.).   
+### Cơ sở lý thuyết
 
-- **Redzones (Vùng đỏ)**: Trình biên dịch chèn các vùng bộ nhớ bị "đầu độc" (poisoned) xung quanh các biến trên stack và heap. Nếu chương trình truy cập vào vùng redzone (tràn bộ đệm), ASan sẽ kiểm tra shadow memory, phát hiện giá trị bị cấm và dừng chương trình ngay lập tức với báo cáo chi tiết.  
+ASan hoạt động dựa trên các cơ chế chính:
 
-> [!NOTE]
-> ASan thường không được dùng như một tool độc lập do nó thể chủ động tìm kiếm, trigger các lỗi (do nó nhận đầu vào cố định từ người dùng) mà nó chỉ có thể thông báo lỗi của chương trình khi nó thực sự xảy ra trên bộ nhớ. Do đó ASan thường được kết hợp với các công cụ khác như fuzzer (AFL++, libFuzzer) để tăng tính chính xác của các công cụ này trong việc phát hiện lỗi bộ nhớ.
+![alt text](./assets/image-7.png)
 
+ 
+**1. Shadow Memory**
+
+ASan tạo ra một vùng bộ nhớ song song gọi là shadow memory:
+
+- Mỗi byte trong chương trình tương ứng với 1 byte trong shadow memory theo tỉ lệ 1:8.
+- Shadow memory lưu trạng thái: vùng hợp lệ, vùng **poisoned**, vùng **redzone**.
+
+
+**2. Redzone**
+
+ASan thêm redzone xung quanh các biến trên stack/heap:
+
+- Redzone là vùng được đánh dấu "poisoned".
+- Bất kỳ truy cập nào vào vùng này sẽ bị ASan ghi nhận là lỗi overflow hoặc underflow.
+
+
+**3. Memory Poisoning**
+
+ASan đánh dấu vùng bộ nhớ bằng các giá trị đặc biệt trong shadow memory:
+
+- `0` → truy cập hợp lệ
+- `non-zero` → truy cập bất hợp lệ
+- `0xFA` → use-after-free
+- `0xF1` → heap redzone
+- `0xF2` → stack redzone
+
+*ASan sử dụng nhiều mã hóa khác nhau tùy loại lỗi*
+
+Khi chương trình truy cập bộ nhớ, ASan intercept lệnh load/store và kiểm tra shadow memory tương ứng. Nếu giá trị bị poison → crash ngay lập tức kèm thông tin lỗi.
+
+### Cách hoạt động của ASan
+
+**1. Instrumentation lúc compile**
+
+Khi compile với flag `-fsanitize=address` trong các công cụ như gdb, AFL++, ... nó sẽ chèn thêm kiểm tra vào mỗi đoạn load/store quan trọng:
+
+- Thay đổi allocator mặc định (malloc) bằng allocator của ASan.
+- Đặt redzone quanh các biến.
+- Quản lý shadow memory.
+
+
+**2. Allocator của ASan**
+
+ASan thay thế malloc/free bằng allocator tùy chỉnh để:
+
+- Gắn redzone quanh các block heap.
+- Không tái sử dụng vùng freed quá nhanh → detect use-after-free tốt hơn.
+- Ghi tag poison/unpoison khi malloc/free.
+
+
+**3. Khi xảy ra lỗi**
+
+Khi load/store chạm vào vùng bị poisoned:
+
+- ASan phát hiện và abort chương trình.
+- In stack trace: vị trí lỗi, vị trí allocation, chương trình gọi, loại lỗi.
+- Dump shadow memory giúp phân tích nhanh.
+
+**Các lỗi ASan phát hiện được:**
+
+- Heap buffer overflow
+- Stack buffer overflow
+- Use-after-free
+- Use-after-scope
+- Double-free
+- Memory leak (kết hợp với -fsanitize=leak)
+- Global buffer overflow
+- Stack-use-after-return
+- Dangling pointer truy cập vào vùng không hợp lệ
+
+
+**Hạn chế của ASan**
+
+- Chi phí tài nguyên cao: ASan làm giảm hiệu năng chương trình khoảng 50–100% và tăng đáng kể mức sử dụng RAM do cần không gian để lưu shadow memory và metadata.
+
+- Không phát hiện toàn bộ lỗi bộ nhớ: ASan không tương thích với Valgrind và cũng không phát hiện được một số lỗi như sử dụng biến chưa khởi tạo (uninitialized memory) – điểm mạnh của Valgrind.
+
+- Không phát hiện data race (trừ khi dùng thêm ThreadSanitizer).
+
+- Không phát hiện mọi lỗi out-of-bounds dạng arithmetic pointer.
+
+- Yêu cầu toàn bộ hệ sinh thái phải được biên dịch với ASan: Không thể chạy ứng dụng không dùng ASan cùng thư viện đã biên dịch có ASan. Điều này khiến việc áp dụng từng phần là bất khả thi, đặc biệt với dự án có nhiều dependency.
+
+- Không an toàn cho môi trường production: ASan runtime (libsanitizer) phụ thuộc vào biến môi trường, có thể dẫn đến lỗ hổng leo thang đặc quyền, khiến nó không phù hợp cho các binary suid hoặc hệ thống production.
 
 
 # Tổng hợp
@@ -977,3 +1075,7 @@ ASan hoạt động dựa trên hai cơ chế chính:
 | **Tỷ lệ Dương tính giả** | Rất thấp (Mục tiêu thiết kế)           | Trung bình (Cao hơn nếu bật CTU)       | 0 (Lý thuyết) / Rất thấp                   | 0 (Crash là thật)                        | 0 (Crash là thật)                      |
 | **Tỷ lệ Âm tính giả**    | Cao (Bỏ sót nhiều lỗi phức tạp)        | Trung bình (Do cắt đường dẫn)          | Thấp (Trong giới hạn bound)                | Cao (Do độ bao phủ thấp)                | Thấp (Theo thời gian chạy)             |
 | **Khả năng Mở rộng**     | Rất cao (Triệu dòng code/phút)         | Trung bình (Chậm hơn biên dịch 2-3x)   | Thấp (Chỉ cho module nhỏ/kernel)           | Cao (Phụ thuộc tốc độ I/O)              | Trung bình (Cần nhiều CPU/thời gian)   |
+
+
+**Phần tiếp theo trong [README_P2.md](./README_P2.md)**
+

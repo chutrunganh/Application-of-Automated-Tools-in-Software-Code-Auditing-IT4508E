@@ -1,6 +1,6 @@
 # Tổng quan chương trình fuzzgoat
 
-![alt text](image-6.png)
+![alt text](./assets/image-6.png)
 
 **Fuzzgoat** là một chương trình C mã nguồn mở, được sửa đổi từ thư viện `udp/json-parser`. Chức năng chính của nó là đọc một tệp JSON từ đầu vào chuẩn (stdin) hoặc từ tệp, phân tích cú pháp và in ra cấu trúc dữ liệu tương ứng. 
 
@@ -20,8 +20,7 @@ fuzzgoat_source_code/
 ├── fuzzgoat.c         # Mã nguồn chính của chương trình
 ├── fuzzgoat.h         # Khai báo hàm, macro cho fuzzgoat.c
 ├── main.c             # Hàm main để khởi động chương trình
-├── fuzzgoatNoVulns.c  # Phiên bản không có lỗ hổng của fuzzgoat
-└── Makefile           # Tập lệnh build
+└──  fuzzgoatNoVulns.c  # Phiên bản không có lỗ hổng của 
 ```
 
 `main.c` là entry point khi chạy theo cách truyền thống (không fuzz), hoặc được dùng làm **harness** tối giản để AFL/LibFuzzer có điểm vào.
@@ -209,7 +208,7 @@ hoặc tương tự với bản GUI:
 
 
 
-![alt text](image-13.png)
+![alt text](./assets/image-13.png)
 
 Tool chỉ phát hiện được 1/4 lỗ hổng.
 
@@ -237,7 +236,7 @@ Một vài tùy chọn kiểm tra (Trong phiên bản ESBMC 7.11.0 64-bit đư�
 | `--div-by-zero-check`         | Kiểm tra phép chia cho 0 (divide by zero)                                 | ✓            |
 | `--assertions`                | Kiểm tra các khẳng định do người dùng đặt (user‐specified assertions)     | ✓            |
 
-Không thể chạy trực tiếp ESBMC trên `fuzzgoat.c` do file này không có hàm `main()` và không biết đâu là input cần kiểm thử. (ESSBMC khám phá tất cả paths từ symbolic inputs chứ nó không thể tự dộng nhận biết đâu là một input, đâu là hàm cần test) -> Cần tạo một file harness để hướng dẫn ESBMC. 
+Không thể chạy trực tiếp ESBMC trên `fuzzgoat.c` do file này không có hàm `main()` và không biết đâu là input cần kiểm thử. (ESBMC khám phá tất cả paths từ symbolic inputs chứ nó không thể tự động nhận biết đâu là một input, đâu là hàm cần test) → Cần tạo một file harness để hướng dẫn ESBMC. 
 
 Với các file yêu cầu đầu vào, chỉ định trong ESBMC như sau:
 
@@ -272,7 +271,7 @@ VERIFICATION FAILED
 
 Áp dụng cho file `fuzzgoat.c`, cần tạo một test harness tương tự để chỉ định hàm cần kiểm thử và các tham số đầu vào nào là symbolic.
 
-- Với hàm cần kiểm thử, do biết trước các lỗi chỉ nằm trong hàm `son_value * json_parse(...) { ... }` (Lỗi 1) và `void json_value_free_ex(...) { ... }` (Lỗi 2,3,4), ta có thể tạo hai test harness riêng biệt để kiểm thử từng hàm một.
+- Với hàm cần kiểm thử, do biết trước các lỗi chỉ nằm trong hàm `json_value * json_parse(...) { ... }` (Lỗi 1) và `void json_value_free_ex(...) { ... }` (Lỗi 2,3,4), ta có thể tạo hai test harness riêng biệt để kiểm thử từng hàm một.
 
 - Với cấu trúc đầu vào thì sẽ phức tạp hơn trong ví dụ trên vì `json_value` là một cấu trúc phức tạp.
 
@@ -324,7 +323,7 @@ typedef enum {
 } json_type;
 ```
 
-Như vậy ta sẽ chỉ định đầu vào sympolic với:
+Như vậy ta sẽ chỉ định đầu vào symbolic với:
 
 ```c
 int type_choice = nondet_int();
@@ -694,7 +693,7 @@ Violated property:
   2. Dòng 296-299: Bỏ qua (vì length != 1)
   3. Dòng 302: `mem_free(ptr, ...)` ← **Nơi lỗi được kích hoạt**
 - State 42 xảy ra trong `wrapper_free()` được gọi từ dòng 302
-- Do đó, dòng 302 là nơi gọi `free()` với con trỏ đã bị decrement → Invalid free
+- Do đó, dòng 302 là nơi gọi `free()` với con trỏ đã bị decrement → Invalid free.
 
 #### Lỗi 1: Use After Free (Empty Array)
 
@@ -703,7 +702,7 @@ Violated property:
 1. **Harness chỉ test `json_value_free_ex`, không test `new_value`:**
    - Lỗi 1 xảy ra trong hàm `new_value()` tại case `json_array` khi `length == 0`
    - Harness ban đầu chỉ gọi `json_value_free_ex()`, không bao giờ đi vào hàm `new_value()`
-   - Do đó ESBMC không thể phát hiện lỗi này
+   - Do đó ESBMC không thể phát hiện lỗi này.
 
 2. **Hàm `new_value()` là hàm static:**
    - Không thể gọi trực tiếp từ harness
@@ -794,28 +793,260 @@ echo performance | tee cpu*/cpufreq/scaling_governor
 exit
 ```
 
-Biên dịch source code file harness cảu `fuzzgaot.c` bằng `afl-cc` để AFL++ chèn các instrument vào:
+Sau đó tạo file harness để AFL++ chạy được `main_afl.c` với các tối ưu:
+
+- **Persistent Mode** (`__AFL_LOOP`): Chạy 10,000 test cases trong cùng 1 process, giảm overhead của fork()
+
+- **Deferred Forkserver** (`__AFL_INIT`): Trì hoãn fork server để bỏ qua khởi tạo ban đầu
+
+- **Shared Memory Fuzzing** (`__AFL_FUZZ_TESTCASE_BUF`): Sử dụng shared memory thay vì stdin/file I/O - nhanh hơn rất nhiều
+
+- **Static Buffer**: Dùng buffer tĩnh để tái sử dụng, tránh malloc/free lặp lại
+
+Biên dịch source code file harness của `fuzzgoat.c` bằng `afl-cc` để AFL++ chèn các instrument vào. Các biến môi trường có thể dùng khi biên dịch:
+
+
+| Tên | Mô tả |
+|-----|-------|
+| `AFL_USE_ASAN=1` | Bật AddressSanitizer, giúp chính xác hơn trong tìm các lỗi liên quan đến bộ nhớ (Heap overflow, Use-after-free)|
+| `AFL_USE_UBSAN=1`| Bật UndefinedBehaviorSanitizer, giúp phát hiện các lỗi liên quan đến hành vi không xác định trong C/C++ (như dereference NULL pointer, out-of-bounds access)|
+| `AFL_USE_MSAN=1`| Bật MemorySanitizer, giúp phát hiện việc sử dụng bộ nhớ chưa được khởi tạo.|
+| `AFL_LLVM_CMPLOG=1` | Tạo ra một bản binary riêng để log các phép so sánh (dùng kèm với cờ `-c` khi chạy AFL++) |
 
 ```bash
-# Vì fuzzgoat.c có liên quan đến các thư viện khác nên dùng -lm
-afl-cc main_afl.c fuzzgoat.c -o main_afl -lm
+# Tắt CmpLog, Bật ASan/UBSan
+AFL_LLVM_CMPLOG=0 AFL_USE_ASAN=1 AFL_USE_UBSAN=1 afl-clang-fast -O3 -funroll-loops main_afl.c fuzzgoat.c -o main_asan
+
+# Bật CmpLog, tắt ASan/UBSan
+AFL_LLVM_CMPLOG=1 afl-clang-fast -O3 -funroll-loops main_afl.c fuzzgoat.c -o main_asan_cmplog -lm
 ```
 
-Sau khi có file binary, chạy AFL++ ở chế độ chạy song song:
+Lệnh trên sẽ tạo ra 2 file binary:
+- `main_asan`: Dùng để phát hiện lỗi với ASan/UBSan
+- `main_asan_cmplog`: Dùng để phát hiện lỗi với CmpLog khi chạy với falg `-c`
+
+
+
+Các cờ khi chạy:
+
+| Cờ | Mô tả |
+|-----|-------|
+| `-i` | Thư mục chứa các testcase ban đầu |
+| `-o` | Thư mục lưu kết quả đầu ra của AFL++ |
+| `-M` | Chạy đa luồng, khai báo đây là luồng master (chính) |
+| `-S` | Chạy đa luồng, khai báo đây là luồng slave (phụ) |
+| `-m <size>` | Giới hạn bộ nhớ RAM mà AFL++ có thể sử dụng |
+| `-t <msec>` | Giới hạn thời gian chạy cho mỗi testcase |
+| `-p <schedule>` | Quyết định seed nào được fuzz nhiều hơn, bao gồm: `explore` ưu tiên khám phá đường đi mới thay vì khai thác sâu (mặc định của AFL++), `exploit` ngược lại, `fast` ưu tiên nhanh chóng bằng fuzz các seed ít fuzz trước đó giúp phát hiện nhiều path mới trong thời gian ngắn, `coe` (Cut-Off Exponential) Giống như fast, nhưng thêm “cut-off + coverage scaling” tức là vừa ưu tiên seed ít fuzz, vừa không bỏ qua seed có coverage tốt, `mmopt` (Modified MOpt) không tính thời gian chạy seed,tăng trọng số cho những seed vừa mới được phát hiện, ...|
+| `-Q` | Chế độ QEMU mode. Dùng để fuzz các file binary (.exe, ELF) mà không có mã nguồn. |
+| `-x <dict_file>` | Sử dụng từ điển, quan trọng nếu format file có cấu trúc (như XML, JSON, SQL) |
+| `-c` | Kích hoạt chế độ so sánh nâng cao (CMPLOG), giúp phát hiện các đường đi mới dựa trên các phép so sánh trong code. |
+| `-D` | Deterministic Mutation (Đột biến đơn định/tuần tự). AFL++ sẽ không ngẫu nhiên, thay vào đó, nó sẽ lấy file đầu seed và thực hiện các thao tác biến đổi lần lượt theo thứ tự, không bỏ sót bước nào, khác với mặc định là ngẫu nhiên (Havoc). Tuy nhiên cách này khiến thời gian chạy một cycle cực kỳ lâu|
+
+**Cụ thể hơn về `-c`:** Vấn đề của Fuzzer thông thường: Khi Fuzzer gặp một đoạn code so sánh phức tạp hoặc "Magic Bytes", nó thường bị kẹt. Ví dụ:
+
+```c
+char magic[4] = "HACK";
+if (strcmp(input, magic) == 0) {
+    bug();
+}
+```
+
+Các fuzzer thường chỉ thay đổi ngẫu nhiên input (bit-flipping). Xác suất để nó ngẫu nhiên tạo ra chuỗi "HACK" là cực kỳ thấp (1/2<sup>32</sup>). Do đó, nó không bao giờ đi vào được hàm `bug()`. Trong khi đó nếu bật CmpLog:
+
+1. Nó ghi lại tất cả các giá trị mà chương trình đang dùng để so sánh (trong ví dụ trên, nó ghi lại chuỗi "HACK").
+2. Nó gửi giá trị này về cho AFL++.
+3. AFL++ sẽ lấy chuỗi "HACK" đó và chèn vào input thử nghiệm tiếp theo.
+4. Kết quả: Fuzzer vượt qua đoạn kiểm tra ngay lập tức.
+
+### Chiến lược fuzzing
+
+Vì đầu vào của chương trình là cấu trúc JSON, một dạng file có cấu trúc chặt chẽ và trong source code có nhiều phép so sánh (if-else) để xử lý cấu trúc JSON này nên ta sẽ tập trung vào việc định hướng tạo ra các testcase có cấu trúc hợp lệ. 
+
+Nhưng trước hết, thử với các đầu vào random không theo cấu trúc trước để chắc chắn chương trình không gặp các lỗi cơ bản khi xử lý các đầu vào sai định dạng  (bao gồm file rỗng, file chỉ gồm khoản trắng, các byte không in được,...). Do mục tiêu là tìm các lỗi nông, không phải lỗi sâu trong các điều kiện if phức tạp mà loại đầu vào này sẽ không vượt qua, ta dùng schedule `fast`.
+
+
+Tiếp theo là các đầu vào có cấu trúc hợp lệ. Đối với JSON, không cần số lượng nhiều, mà cần Sự đa dạng về cấu trúc. Ta chọn các trường hợp biên tiêu biểu:
+
+- Valid Case: Tạo một file JSON chuẩn mà chương trình chạy bình thường.
+
+- Edge Case:
+
+  - Một JSON rỗng: `{}`
+
+  - JSON rỗng cho mỗi loại đối tượng. Theo `fuzzgoat.h` thì các kiểu đối tượng có thể có là:
+    ```c
+    typedef enum
+    {
+      json_none,
+      json_object,
+      json_array,
+      json_integer,
+      json_double,
+      json_string,
+      json_boolean,
+      json_null
+    } json_type;
+    ```
+    Nên ta sẽ tạo các seed tương ứng là: `<empty file>`, `{}`, `[]`, `0`, `0.0`, `""`, `true`, `false`, `null`. 
+
+  - JSON kích thước lớn, overflow với mỗi loại đối tượng: `<file kích thước lớn nhưng chỉ chứa dữ liệu không in được>`, `{"a": "AAAA...AAA", "b": "BBBB...BBB",...}`, `[1111...111]`, `12345678901234567890`, `3.4028235e+38` (giá trị float lớn nhất), số âm lớn `-9999......`, `"AAAA....AAAAAA"` (chuỗi dài).
+
+  - Một JSON lồng nhau sâu: `{"a": {"b": {"c": ...}}}`
+
+  - Một JSON chứa các kiểu dữ liệu khác nhau: số âm, số thực, null, boolean (true/false).
+
+
+Đồng thời ta chỉ định từ điển để AFL++ biết các token quan trọng trong JSON, giúp nó tạo ra các testcase hợp lệ hơn.
+
+Chạy script Python `generate_seeds.py` để tạo ra folder seed.
+
+
+Với phase 1: Đầu vào không cấu trúc
 
 ```bash
-afl-fuzz -i in -o out -M main0 ./main_afl @@
-
-afl-fuzz -i in -o out -S sync1 ./main_afl @@
+afl-fuzz -i seeds/strategy1_non_structured/ -D -p fast -o out/ ./main_asan
 ```
 
-![alt text](image-10.png)
 
-*Xác nhận AFL++ đã tận dụng được đúng 2 core CPU*
+![alt text](./assets/image-15.png)
 
-Với kết quả thu được như test case này: fuzzgoat_source_code/AFL_plus_plus/out/sync1/crashes/id:000003,sig:06,src:000193+000313,time:2888,execs:12608,op:splice,rep:3
+Với phase 2: Đầu vào có cấu trúc
 
-## 2. HongFuzz
+Ta sẽ chạy nhiều instance song song để tận dụng đa nhân CPU, mỗi instance dùng một chiến lược khác nhau để bù trừ nhược điểm cho nhau:
+
+```bash
+# Master instance 
+# Luồng chính chỉ có thể dùng với chiến lược fast hoặc explore theo như lỗi
+# [-] PROGRAM ABORT : -M is compatible only with fast and explore -p power schedules
+#         Location : main(), src/afl-fuzz.c:1376
+afl-fuzz -i seeds/strategy2_structured/ -o out/ -M Master -c ./main_asan_cmplog -p explore -- ./main_asan
+
+# Slave instance 1
+# Để dùng được -x sẽ cần dùng -D
+afl-fuzz -i seeds/strategy2_structured/ -o out/ -S Slave1 -D -x seeds/json.dict -c ./main_asan_cmplog -p exploit -- ./main_asan
+
+# Slave instance 2
+afl-fuzz -i seeds/strategy2_structured/ -o out/ -S Slave2 -c ./main_asan_cmplog -p fast  -- ./main_asan
+```
+
+- `Master`: Instance này đóng vai trò quản lý, tập trung khám phá các ngõ ngách code mới nên dùng với schedule `explore`.
+
+- `Slave1`: Instance này tập trung vào khai thác sâu các seed đã biết, dùng từ điển để tạo ra các testcase hợp lệ hơn, nên dùng schedule `exploit` cộng với dùng từ điển `-x seeds/json.dict` và flag `-D` để không bỏ sót bất kỳ biến đổi nào. Cycle của instance này sẽ tăng rất chậm so với hai instance còn lại nhưng sẽ giúp phát hiện các lỗi sâu hơn.
+
+- `Slave2`: Instance này tập trung vào tốc độ và biến đổi input dựa trên thống kê. Dùng schedule `fast` để nhanh chóng mở rộng coverage ban đầu.
+
+
+![alt text](./assets/RunMultiThread.gif)
+
+Khi này AFL++ sẽ chạy max công suất của 3 nhân CPU:
+
+![alt text](./assets/image-18.png)
+
+Ngoài ra chúng tôi có thử thêm một chiến lược nữa là dùng các seed từ các bộ testcase có sẵn chuyên dùng để kiểm tra đầu vào dạng JSON:
+
+- [JSONTestSuite](https://github.com/nst/JSONTestSuite.git) xem trong folder `test_parsing/`, `test_transform`.
+
+- [JSON-Schema-Test-Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite.git)
+
+Tuy nhiên do sau khi tổng hợp từ hai tập seed này thì số lượng rất lớn khiến AFL++ hoạt động rất chậm, chúng tôi dùng `afl-cmin` để giảm số lượng seed xuống:
+
+```bash
+afl-cmin -i seeds_raw -o seeds_clean ./main_afl 
+```
+
+`afl-cmin` có tác dụng là Corpus Minimization - Giảm tập hợp các seed đầu vào xuống chỉ còn những seed đại diện cho các luồng xử lý khác nhau trong chương trình.
+
+Ví dụ:
+
+- File 1 `{"a": 1}` khiến chương trình chạy qua dòng code A, B, C.
+
+- File 2 `{"a": 2}` cũng khiến chương trình chạy qua dòng code A, B, C y hệt.
+
+→ Với AFL++, file 2 là dư thừa → giữ lại File 2 chỉ làm tốn thời gian fuzz lại những gì đã biết. `afl-cmin` sẽ so sánh và xóa File 2, chỉ giữ lại File 1 làm đại diện.
+
+
+Sau quá trình chạy Fuzzing, AFL++ sẽ ghi lại kết quả trong thư mục đầu ra đã chỉ định, bao gồm:
+
+```
+out_dir/
+├── default/             <-- (Hoặc tên 'Main'/'Slave1' nếu chạy song song)
+│   ├── crashes/         <-- QUAN TRỌNG NHẤT: Chứa các input làm sập chương trình
+│   ├── hangs/           <-- Chứa các input làm chương trình bị treo (timeout)
+│   ├── queue/           <-- Chứa các "corpus" (input thú vị tạo ra code path mới)
+│   ├── fuzzer_stats     <-- File text chứa thống kê trạng thái (tốc độ, số crash...)
+│   └── plot_data        <-- Dữ liệu để vẽ biểu đồ tiến độ
+```
+
+- `crashes/`: Đây là thư muc quan trọng nhất. Mỗi file trong này là một test case khiến chương trình bị crash (Segmentation Fault, Abort, Buffer Overflow...). Một file thường có tên, ví dụ: `id:000005,sig:11,src:000002,time:123456,op:havoc,rep:4` trong đó:
+
+  - `id:000005`: ID của testcase (tăng dần từ 000000), giúp đếm số lượng crash độc nhất (unique crashes) sơ bộ.
+
+  - `sig:11`: Cho biết chương trình crash vì lý do gì, với tín hiệu số 11 là SIGSEGV (Segmentation Fault). Một số sig phổ biến khác: 06 (SIGABRT - abort), 08 (SIGFPE - floating point exception), 04 (SIGILL - illegal instruction).
+
+  - `src:000002`: Input này được biến đổi từ file seed nào trong hàng đợi (queue). Ở ví dụ này, nó được lai tạo từ file có id:000002 trong thư mục queue.
+
+  - `time:123456`: Thời gian (tính bằng ms) mà AFL++ mất để phát hiện crash này kể từ khi bắt đầu chạy.
+
+  - `op:havoc`: Phương pháp mà AFL++ đã sử dụng để tạo ra testcase này. Ở đây là "havoc" - tức là biến đổi ngẫu nhiên.
+
+  - `rep:4`(Repetition): Cho biết input này được ghép hoặc lặp lại bao nhiêu lần.
+
+- `hangs/`: Các input khiến chương trình chạy quá thời gian -t quy định (mặc định 1000ms).
+
+- `queue/`: Đây là các corpus đáng chú ý mà AFL++ đã lai tạo được, AFL++ sẽ tiếp tục lấy các corrupt từ đây để tạo ra các biến thể mới.
+
+
+Bảng hiển thị tiến độ chạy của AFL++ trên terminal:
+
+```
+        american fuzzy lop ++4.09c {main_fuzzer} (./main_afl) [explore]
+┌─ process timing ────────────────────────────────────┬─ overall results ────┐
+│        run time : 0 days, 0 hrs, 34 min, 45 sec     │  cycles done : 96    │
+│   last new find : 0 days, 0 hrs, 20 min, 17 sec     │ corpus count : 589   │
+│last saved crash : 0 days, 0 hrs, 26 min, 19 sec     │saved crashes : 63    │
+│ last saved hang : none seen yet                     │  saved hangs : 0     │
+├─ cycle progress ─────────────────────┬─ map coverage┴──────────────────────┤
+│  now processing : 291*7 (49.4%)      │    map density : 4.89% / 39.14%     │
+│  runs timed out : 0 (0.00%)          │ count coverage : 6.62 bits/tuple    │
+├─ stage progress ─────────────────────┼─ findings in depth ─────────────────┤
+│  now trying : input-to-state         │ favored items : 80 (13.58%)         │
+│ stage execs : 1288/2442 (52.74%)     │  new edges on : 104 (17.66%)        │
+│ total execs : 13.6M                  │ total crashes : 173k (63 saved)     │
+│  exec speed : 58.1k/sec              │  total tmouts : 6 (0 saved)         │
+├─ fuzzing strategy yields ────────────┴─────────────┬─ item geometry ───────┤
+│   bit flips : 4/6088, 0/6013, 1/5863               │    levels : 3         │
+│  byte flips : 0/761, 0/686, 0/552                  │   pending : 403       │
+│ arithmetics : 3/42.4k, 0/2830, 0/3                 │  pend fav : 5         │
+│  known ints : 2/4184, 0/18.8k, 0/25.4k             │ own finds : 153       │
+│  dictionary : 5/19.8k, 12/28.5k, 0/21.9k, 1/51.3k  │  imported : 306       │
+│havoc/splice : 150/111k, 10/28.2k                   │ stability : 100.00%   │
+│py/custom/rq : unused, unused, 0/1121, 0/213        ├───────────────────────┘
+│    trim/eff : disabled, 0.00%                      │          [cpu001: 25%]
+└─ strategy: explore ────────── state: started :-) ──┘
+```
+
+Trong đó:
+
+- `cycle`: Một cycle là một vòng lặp đầy đủ mà AFL++ thực hiện trên tất cả các seed trong thư mục queue. Trong mỗi cycle, AFL++ sẽ lấy từng seed, áp dụng các chiến thuật biến đổi (mutations) khác nhau để tạo ra các testcase mới, chạy chúng và ghi nhận kết quả (phát hiện đường đi mới, crash, hang,...). Sau khi hoàn thành tất cả các seed trong queue, một cycle kết thúc và AFL++ bắt đầu một cycle mới với các seed đã được cập nhật (bao gồm cả các testcase mới tìm được trong cycle trước đó). Số lượng cycle hoàn thành cho thấy AFL++ đã lặp qua toàn bộ tập seed bao nhiêu lần.
+
+- `total crashes : 173k (63 saved)`: Số lượng lỗi độc nhất (unique crashes) đã tìm được và lưu lại là 63, trên tổng số 173,000 lần crash (có thể có nhiều crash giống nhau).
+
+- `last new find: 0 days, 0 hrs, 20 min, 17 sec` : Thời gian kể từ lần cuối cùng tìm thấy một đường đi mới (new path). Nếu sau một thời gian dài không tìm được đường đi mới, có thể đã xảy ra hiện tượng bão hòa (saturation). Fuzzer đang bị kẹt, không đi sâu hơn được nữa.
+
+- `map density : 4.89% / 39.14%`: cho biết tỉ lệ các branch/edge (trong coverage-map) mà fuzzer đã ghé qua so với tổng số slot trong bitmap. Số đầu (4.89%) thường là coverage của testcase đang chạy / batch gần nhất, số sau (39.14%) là coverage tích lũy từ tất cả testcase đã fuzz.
+
+- `exec speed : 58.1k/sec`: Tốc độ thực thi các testcase, ở đây là 58.1 nghìn test case mỗi giây. Lưu ý do ta đang bật ASan nên tốc độ thực thi sẽ chậm đi đáng kể so với bình thường.
+
+
+- `dictionary : 9/96.5k, 50/129k, 0/101k, 1/151k`: tỉ lệ Số lần thành công / Tổng số lần thử cho 4 chiến thuật dùng từ điển khác nhau. Cụ thể:
+
+  - `9/96.5k` (User - Ghi đè): Lấy từ trong file json.dict đè lên dữ liệu cũ. Kết quả: Thử 96.500 lần → Tìm được 9 luồng code mới.
+  - `50/129k` (User - Chèn thêm): Lấy từ trong file json.dict chèn vào giữa dữ liệu cũ. Kết quả: Thử 129.000 lần → Tìm được 50 luồng code mới.
+  - `0/101k` (Auto - Ghi đè): Dùng các từ AFL++ tự học (tự tìm trong file binary) để ghi đè. Không tìm được luồng code mới nào sau 101.000 lần thử.
+  - `1/151k` (Auto - Chèn thêm): Dùng các từ AFL++ tự học để chèn. Chỉ tìm được 1 luồng code mới sau 151.000 lần thử. Cho thấy từ điển AFL tự học không hiệu quả trong trường hợp này.
+
+## 2. HonggFuzz
 
 Cài đặt:
 
@@ -825,18 +1056,52 @@ cd honggfuzz
 sudo make install
 ```
 
-Biên dịch với clang của HongFuzz để nó chèn thêm các instrument vào code:
+Sau đó viết file harness cho HonggFuzz, gần giống AFL++ chỉ khác:
+
+1. HonggFuzz trực tiếp điền vào buffer qua `HF_ITER()` thày vì AFL++ dùng shared memory `(__AFL_FUZZ_TESTCASE_BUF)` cần `memcpy()`
+
+2. Thay đổi macro vòng lặp từ `__AFL_LOOP` thành `HF_ITER()` cho chế độ persistent mode.
+
+Biên dịch với clang của HonggFuzz để nó chèn thêm các instrument vào code, sử dụng thêm AddressSanitizer để phát hiện lỗi bộ nhớ:
 
 ```bash
-hfuzz-clang -fsanitize=address main_hongfuzz.c fuzzgoat.c -o main_hongfuzz
+hfuzz-cc -O3 -fsanitize=address main_honggfuzz.c fuzzgoat.c -o main_honggfuzz_asan
 ```
 Chạy thử:
 
 ```bash
-./main_hongfuzz
+honggfuzz -i seeds/strategy2_structured/ -o out/  -w seeds/json.dict -n $(nproc) -- ./main_honggfuzz_asan
 ```
 
+Trong đó:
 
+- `-i seeds/`: Thư mục chứa các seed đầu vào.
+
+- `-o out/`: Thư mục lưu kết quả đầu ra của HonggFuzz.
+
+- `-w seeds/json.dict`: Sử dụng từ điển để tạo testcase hợp lệ hơn.
+
+- `-n $(nproc)`: Sử dụng số luồng bằng số nhân CPU để tận dụng đa nhân CPU.
+
+
+HonggFuzz có thể tự phân bố đều công việc trên nhiều nhân CPU mà không sử dụng một nhân tới mức 100% như AFL++:
+
+![alt text](./assets/image-21.png)
+
+
+Kết quả đầu ra:
+
+```
+  Mode [3/3] : Feedback Driven Mode
+      Target : ./main_honggfuzz_asan
+     Threads : 12, CPUs: 12, CPU%: 453% [37%/CPU]
+       Speed : 509/sec [avg: 448]
+     Crashes : 78408 [unique: 1, blocklist: 0, verified: 0]
+    Timeouts : 0 [1 sec]
+ Corpus Size : 1, max: 10,240 bytes, init: 42 files
+  Cov Update : 0 days 00 hrs 02 mins 54 secs ago
+    Coverage : edge: 0/0 [0%] pc: 0 cmp: 0
+```
 
 ## Tìm kiếm dòng gây lỗi từ đầu ra các tool Fuzzing
 
@@ -1179,4 +1444,16 @@ json_value_free_ex (settings=0x7fffffffd080, value=0x55555555b8b0) at fuzzgoat.c
 ```
 Như vậy là tại đây giá trị `value->u.string.ptr` giảm đi 1 byte bởi câu lệnh nằm ở ngay trước dòng 296, thế tức là dòng 279 ` value->u.string.ptr--;` dòng này giảm con trỏ xuống 1 byte, khiến sai lệnh vị trí trong cách con trỏ trỏ đến dữ liệu, do đó tại dòng 302 `settings->mem_free (value->u.string.ptr, settings->user_data);` phía dưới gây crash như ta thấy trong stacktrace ban đầu.
 
+
+# Reference
+
+- [AFL++ GitHub Repository](https://github.com/AFLplusplus/AFLplusplus)
+
+- [A usefull guide on how to use AFL](https://github.com/uds-se/AFLplusplus)
+
+- [ESBMC Official Doc](https://esbmc.github.io/docs/)
+
+- [ASan Github Repository](https://github.com/google/sanitizers/wiki/addresssanitizer)
+
+- [HonggFuzz GitHub Repository](https://github.com/google/honggfuzz)
 

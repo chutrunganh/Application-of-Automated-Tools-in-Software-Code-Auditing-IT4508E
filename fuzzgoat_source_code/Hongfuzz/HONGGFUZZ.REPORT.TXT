@@ -1,0 +1,76 @@
+=====================================================================
+TIME: 2025-12-10.16:49:23
+=====================================================================
+FUZZER ARGS:
+ mutationsPerRun : 5
+ externalCmd     : NULL
+ fuzzStdin       : FALSE
+ timeout         : 1 (sec)
+ ignoreAddr      : (nil)
+ ASLimit         : 0 (MiB)
+ RSSLimit        : 0 (MiB)
+ DATALimit       : 0 (MiB)
+ wordlistFile    : seeds/json.dict
+ dynFileMethod   : 
+ fuzzTarget      : ./main_honggfuzz_asan 
+CRASH:
+DESCRIPTION: 
+ORIG_FNAME: 030_many_keys_5000.json
+FUZZ_FNAME: /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/Hongfuzz/SIGABRT.PC.7ffff7c9eb2c.STACK.1be16aacd8.CODE.-6.ADDR.0.INSTR.mov____%eax,%r14d.fuzz
+PID: 503138
+SIGNAL: SIGABRT (6)
+PC: 0x7ffff7c9eb2c
+FAULT ADDRESS: 0x0
+INSTRUCTION: mov____%eax,%r14d
+STACK HASH: 0000001be16aacd8
+STACK:
+ <0x00007ffff7c4527e> [func:UNKNOWN file: line:0 module:/usr/lib/x86_64-linux-gnu/libc.so.6]
+ <0x00007ffff7c288ff> [func:UNKNOWN file: line:0 module:/usr/lib/x86_64-linux-gnu/libc.so.6]
+ <0x0000555555642d7b> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x0000555555640f05> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x0000555555633b65> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x0000555555633db9> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x0000555555595be7> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x0000555555626729> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x0000555555626b88> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x00007ffff7fca873> [func:UNKNOWN file: line:0 module:/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2]
+ <0x00007ffff7fe45a0> [func:UNKNOWN file: line:0 module:/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2]
+=====================================================================
+=====================================================================
+TIME: 2025-12-10.16:54:04
+=====================================================================
+FUZZER ARGS:
+ mutationsPerRun : 5
+ externalCmd     : NULL
+ fuzzStdin       : FALSE
+ timeout         : 1 (sec)
+ ignoreAddr      : (nil)
+ ASLimit         : 0 (MiB)
+ RSSLimit        : 0 (MiB)
+ DATALimit       : 0 (MiB)
+ wordlistFile    : seeds/json.dict
+ dynFileMethod   : 
+ fuzzTarget      : ./main_honggfuzz_asan 
+CRASH:
+DESCRIPTION: 
+ORIG_FNAME: 090_duplicate_keys.json
+FUZZ_FNAME: /home/chutrunganh/Documents/HUST/An Toan PM/Project/fuzzgoat_source_code/Hongfuzz/SIGABRT.PC.7ffff7c9eb2c.STACK.1be16aacd8.CODE.-6.ADDR.0.INSTR.mov____%eax,%r14d.fuzz
+PID: 534809
+SIGNAL: SIGABRT (6)
+PC: 0x7ffff7c9eb2c
+FAULT ADDRESS: 0x0
+INSTRUCTION: mov____%eax,%r14d
+STACK HASH: 0000001be16aacd8
+STACK:
+ <0x00007ffff7c4527e> [func:UNKNOWN file: line:0 module:/usr/lib/x86_64-linux-gnu/libc.so.6]
+ <0x00007ffff7c288ff> [func:UNKNOWN file: line:0 module:/usr/lib/x86_64-linux-gnu/libc.so.6]
+ <0x0000555555642d7b> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x0000555555640f05> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x0000555555633b65> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x0000555555633db9> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x0000555555595be7> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x0000555555626729> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x0000555555626b88> [func:UNKNOWN file: line:0 module:/home/chutrunganh/Documents/HUST/An]
+ <0x00007ffff7fca873> [func:UNKNOWN file: line:0 module:/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2]
+ <0x00007ffff7fe45a0> [func:UNKNOWN file: line:0 module:/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2]
+=====================================================================

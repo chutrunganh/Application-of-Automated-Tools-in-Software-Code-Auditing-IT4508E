@@ -1,0 +1,119 @@
+# --- structural / delimiters ---
+"{"  
+"}"  
+"["  
+"]"  
+","  
+":"  
+
+# --- boolean / null ---
+"true"  
+"false"  
+"null"  
+
+# --- integers ---
+"0"  
+"-0"  
+"1"  
+"-1"  
+"123"  
+"-123"  
+"1234567890"  
+"-987654321"  
+
+# --- floats / exponent ---
+"0.0"  
+"-0.0"  
+"3.14"  
+"-0.001"  
+"10.000"  
+"2.71828"  
+"1e10"  
+"-1e10"  
+"1E+5"  
+"-2E-5"  
+"6.022e23"  
+"1.0e-3"  
+
+# --- strings simple ---
+"\"\""  
+"\"a\""  
+"\"hello\""  
+"\"JSON\""  
+"\"key\""  
+"\"value\""  
+"\"name\""  
+"\"id\""  
+
+# --- strings with escape / unicode / special ---
+"\"\\\"quoted\\\"\""  
+"\"\\\\\""  
+"\"\\/\""  
+"\"\\b\""  
+"\"\\f\""  
+"\"\\n\""  
+"\"\\r\""  
+"\"\\t\""  
+"\"\\u0041\""        # 'A'  
+"\"\\u00E9\""        # 'é'  
+"\"\\u03B1\""        # Greek alpha  
+"\"\\uD83D\\uDE00\"" # Emoji 😀 (surrogate pair)  
+"\"long_string_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""  
+"\"   \""             # spaces only  
+"\" \n \t \""          # whitespace inside string  
+
+# --- simple valid JSON skeletons ---
+"{}"  
+"[]"  
+"{\"k\":0}"  
+"{\"\":0}"  
+"[0]"  
+"[1,2,3]"  
+"[\"a\",\"b\",\"c\"]"  
+"{\"a\":[],\"b\":{}}"  
+"{\"data\":null}"  
+"{\"flag\":true}"  
+"{\"flag\":false}"  
+
+# --- mixed object/array examples ---
+"{\"key\":[0,1,2]}"  
+"{\"key\":[\"\",null,true,false]}"  
+"[ {\"x\":1}, {\"y\":\"s\"}, 42 ]"  
+"{\"id\":123, \"name\":\"test\", \"active\":true, \"values\":[0.1,2.3,4.5]}"  
+
+# --- common key-names / field names (string keys) ---
+"\"id\""  
+"\"name\""  
+"\"type\""  
+"\"value\""  
+"\"data\""  
+"\"items\""  
+"\"key\""  
+
+# --- whitespace / formatting tokens ---  
+" "  
+"\n"  
+"\t"  
+"\r\n"  
+"\n  "  
+"  \t  "  
+
+# --- delimiter combinations / punctuation ---  
+","  
+":"  
+", "  
+": "  
+"] ,["  
+"} ,{"  
+"]}{"  
+
+# --- bizarre / edge-case patterns ---  
+"null,true,false"  
+"\"\\u0000\""     # string with NULL char  
+"\"\\uFFFF\""     # high unicode  
+"\"\\uD800\""     # invalid surrogate alone  
+"-0.123e-10"  
+"000123"          # leading zeros  
+"01"              # nonstandard integer  
+"Infinity"        # not standard JSON — but fuzzing resilience  
+"NaN"             # same as above  
