@@ -1425,7 +1425,7 @@ case json_string:
 }
 ```
 
-Trogn case này `value` trỏ tới `value->u.string.ptr`, theo dõi biến này ta thấy:
+Trong case này `value` trỏ tới `value->u.string.ptr`, theo dõi biến này ta thấy:
 
 ```bash
 (gdb) p value->u.string.ptr

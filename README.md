@@ -24,6 +24,7 @@
     ├── fuzzgoat.c          # Mã nguồn chính của fuzzgoat
     ├── fuzzgoat.h          # Mã nguồn chính của fuzzgoat
     ├── main.c              # Harness gốc của fuzzgaot viết cho AFL
+    ├── input-files         # Input đáp án, sẽ kích hoạt các lỗ hổng
     └── fuzzgoatNoVulns.c   # Phiên bản không có lỗ hổng của fuzzgoat
 ```
 
