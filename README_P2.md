@@ -965,6 +965,87 @@ Ví dụ:
 
 → Với AFL++, file 2 là dư thừa → giữ lại File 2 chỉ làm tốn thời gian fuzz lại những gì đã biết. `afl-cmin` sẽ so sánh và xóa File 2, chỉ giữ lại File 1 làm đại diện.
 
+Đầu tiên,ta clone về 2 test set từ 2 github repo:
+```bash
+git clone https://github.com/nst/JSONTestSuite.git
+git clone https://github.com/json-schema-org/JSON-Schema-Test-Suite.git
+```
+![alt text](image-1.png)
+Ta có thể thấy ở repo github đầu tiên(JSON test suite),có 2 folder chứa seed là test_parsing và test_transform.
+Ta tạo folder seeds_raw và đưa các seeds đã clone vào:
+```bash
+mkdir seeds_raw
+
+cp ~/JSONTestSuite/test_parsing/*.json seeds_raw/
+cp ~/JSONTestSuite/test_transform/*.json seeds_raw/
+cp -r ~/JSON-Schema-Test-Suite/tests/draft*/ seeds_raw/
+```
+Giảm số seed xuống:
+```bash
+afl-cmin -i seeds_raw -o seeds_clean ./main_afl 
+```
+Rồi ta chạy AFL++ với ASAN để debug dễ hơn:
+```bash
+afl-fuzz -i seeds_clean -o out -- ./fuzzgoat_ASAN @@ 
+```
+Sau 15 phút chạy fuzzing,ta có kết quả:
+![alt text](image.png)
+
+Một vài nhận xét sau quá trình chạy:
+Hiệu suất fuzzing (Performance)
+
+Exec speed ~ 3966 execs/sec
+→ Với ASan bật, đây là mức hợp lý (ASan thường làm chậm 8–15×).
+→ Chứng tỏ target không quá nặng, instrumentation ổn định.
+
+Total execs: 782k trong ~4 phút
+→ Coverage tăng nhanh, fuzzing không bị bottleneck I/O hay timeout.
+
+Stability: 100%
+→ Rất tốt, nghĩa là input cho cùng path luôn cho kết quả giống nhau.
+→ Điều này giúp AFL++ đưa ra quyết định mutation chính xác hơn.
+Corpus & Coverage
+
+Corpus count: 896
+→ Corpus phát triển mạnh trong thời gian ngắn.
+→ Cho thấy seed ban đầu + mutation đủ tốt để mở rộng state space.
+
+Map density: 24.67% / 80.59%
+
+~25% edge hit thực tế
+
+~80% max theoretical
+→ Đây là coverage khá cao cho fuzzing thời gian ngắn.
+
+New edges on: 78 (8.71%)
+→ Vẫn còn code mới được khám phá, fuzzing chưa bão hoà.
+Crash & Bug discovery
+
+Total crashes: 1380 (31 saved)
+→ Rất nhiều crash trùng lặp (expected khi bật ASan).
+→ AFL++ đã deduplicate còn 31 crash unique → số này dùng để phân tích bug.
+
+Last saved crash: 5 giây trước
+→ Bug vẫn đang được tìm liên tục, không phải dead fuzzing.
+
+No hangs / no timeouts
+→ Target xử lý input nhanh, không có infinite loop đáng kể.
+Fuzzing strategy & mutation
+
+Strategy: explore
+→ Tập trung mở rộng coverage thay vì crash-only.
+→ Phù hợp giai đoạn đầu + ASan.
+
+Havoc/splice: 231 / 650k
+→ Havoc đang đóng vai trò chính trong tìm path mới và crash.
+
+Bit/byte flips gần như không đóng góp
+→ Input format có cấu trúc → mutation ngẫu nhiên cấp thấp kém hiệu quả.
+Đánh giá tổng thể:
+
+🔹 AFL++ + ASan đạt coverage tốt, ổn định cao, và phát hiện nhiều crash hợp lệ trong thời gian ngắn.
+🔹 ASan làm giảm tốc độ thực thi nhưng đổi lại là crash chất lượng cao, dễ debug.
+🔹 Corpus và coverage vẫn đang tăng → fuzzing chưa đạt plateau.
 
 Sau quá trình chạy Fuzzing, AFL++ sẽ ghi lại kết quả trong thư mục đầu ra đã chỉ định, bao gồm:
 
