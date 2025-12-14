@@ -28,7 +28,7 @@
     └── fuzzgoatNoVulns.c   # Phiên bản không có lỗ hổng của fuzzgoat
 ```
 
-# 1. Kiểm thử phần mềm là gì
+# 1. Kiểm thử phần mềm là gì  
 
 Kiểm thử phần mềm là cố gắng tìm ra các lỗi/chứng minh không tồn tại lỗi để đảm bảo phần mềm hoạt động an toàn, đáng tin cậy. Để đảm bảo phần mềm được kiểm thử đầy đủ, người ta thường dựa vào các tiêu chí như:
 

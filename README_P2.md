@@ -16,7 +16,7 @@ Cấu trúc thư mục:
 ```
 fuzzgoat_source_code/
 ├── in/seed            # Chứa seed đầu vào cho AFL++ fuzzing
-├── input-files        # Chứa các payload sẽ trigger lỗ hổng(dùng để đối chiếu kết quả)
+├── input-files        # Chứa các payload sẽ trigger lỗ hổng (dùng để đối chiếu kết quả)
 ├── fuzzgoat.c         # Mã nguồn chính của chương trình
 ├── fuzzgoat.h         # Khai báo hàm, macro cho fuzzgoat.c
 ├── main.c             # Hàm main để khởi động chương trình
@@ -179,7 +179,7 @@ Một vài cờ cơ bản trong cppcheck:
 
 | Cờ                              | Ý nghĩa                                      
 | ------------------------------- | ----------------- | 
-| `--enable=<group>`              | Bật các nhóm kiểm tra, bao gồm wảning, style, performance(Lỗi hiệu năng), portability (Không tương thích hệ thống), unusedFunction (Bắt hàm không dùng), all (Bật tất cả),...                                                  |
+| `--enable=<group>`              | Bật các nhóm kiểm tra, bao gồm warning, style, performance (Lỗi hiệu năng), portability (Không tương thích hệ thống), unusedFunction (Bắt hàm không dùng), all (Bật tất cả),...                                                  |
 | `--inconclusive`                | Bật các cảnh báo “có thể đúng” , chấp nhận dương tính giả                      | `--force`                       | Buộc phân tích ngay cả khi gặp lỗi phân tích cú pháp                   |
 | `--suppress=missingIncludeSystem`| Bỏ cảnh báo thiếu system include|
 | `--std=c99/c11/c++11/c++17/...` | Chỉ định chuẩn ngôn ngữ                           
@@ -275,7 +275,7 @@ VERIFICATION FAILED
 
 - Với cấu trúc đầu vào thì sẽ phức tạp hơn trong ví dụ trên vì `json_value` là một cấu trúc phức tạp.
 
-DỰa trên source code trong `fuzzgoat.h`, ta có cấu trúc của object này là:
+Dựa trên source code trong `fuzzgoat.h`, ta có cấu trúc của object này là:
 
 ```c
 typedef struct _json_value {
@@ -823,7 +823,7 @@ AFL_LLVM_CMPLOG=1 afl-clang-fast -O3 -funroll-loops main_afl.c fuzzgoat.c -o mai
 
 Lệnh trên sẽ tạo ra 2 file binary:
 - `main_asan`: Dùng để phát hiện lỗi với ASan/UBSan
-- `main_asan_cmplog`: Dùng để phát hiện lỗi với CmpLog khi chạy với falg `-c`
+- `main_asan_cmplog`: Dùng để phát hiện lỗi với CmpLog khi chạy với flag `-c`
 
 
 
@@ -900,152 +900,6 @@ Tiếp theo là các đầu vào có cấu trúc hợp lệ. Đối với JSON, 
 Đồng thời ta chỉ định từ điển để AFL++ biết các token quan trọng trong JSON, giúp nó tạo ra các testcase hợp lệ hơn.
 
 Chạy script Python `generate_seeds.py` để tạo ra folder seed.
-
-
-Với phase 1: Đầu vào không cấu trúc
-
-```bash
-afl-fuzz -i seeds/strategy1_non_structured/ -D -p fast -o out/ ./main_asan
-```
-
-
-![alt text](./assets/image-15.png)
-
-Với phase 2: Đầu vào có cấu trúc
-
-Ta sẽ chạy nhiều instance song song để tận dụng đa nhân CPU, mỗi instance dùng một chiến lược khác nhau để bù trừ nhược điểm cho nhau:
-
-```bash
-# Master instance 
-# Luồng chính chỉ có thể dùng với chiến lược fast hoặc explore theo như lỗi
-# [-] PROGRAM ABORT : -M is compatible only with fast and explore -p power schedules
-#         Location : main(), src/afl-fuzz.c:1376
-afl-fuzz -i seeds/strategy2_structured/ -o out/ -M Master -c ./main_asan_cmplog -p explore -- ./main_asan
-
-# Slave instance 1
-# Để dùng được -x sẽ cần dùng -D
-afl-fuzz -i seeds/strategy2_structured/ -o out/ -S Slave1 -D -x seeds/json.dict -c ./main_asan_cmplog -p exploit -- ./main_asan
-
-# Slave instance 2
-afl-fuzz -i seeds/strategy2_structured/ -o out/ -S Slave2 -c ./main_asan_cmplog -p fast  -- ./main_asan
-```
-
-- `Master`: Instance này đóng vai trò quản lý, tập trung khám phá các ngõ ngách code mới nên dùng với schedule `explore`.
-
-- `Slave1`: Instance này tập trung vào khai thác sâu các seed đã biết, dùng từ điển để tạo ra các testcase hợp lệ hơn, nên dùng schedule `exploit` cộng với dùng từ điển `-x seeds/json.dict` và flag `-D` để không bỏ sót bất kỳ biến đổi nào. Cycle của instance này sẽ tăng rất chậm so với hai instance còn lại nhưng sẽ giúp phát hiện các lỗi sâu hơn.
-
-- `Slave2`: Instance này tập trung vào tốc độ và biến đổi input dựa trên thống kê. Dùng schedule `fast` để nhanh chóng mở rộng coverage ban đầu.
-
-
-![alt text](./assets/RunMultiThread.gif)
-
-Khi này AFL++ sẽ chạy max công suất của 3 nhân CPU:
-
-![alt text](./assets/image-18.png)
-
-Ngoài ra chúng tôi có thử thêm một chiến lược nữa là dùng các seed từ các bộ testcase có sẵn chuyên dùng để kiểm tra đầu vào dạng JSON:
-
-- [JSONTestSuite](https://github.com/nst/JSONTestSuite.git) xem trong folder `test_parsing/`, `test_transform`.
-
-- [JSON-Schema-Test-Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite.git)
-
-Tuy nhiên do sau khi tổng hợp từ hai tập seed này thì số lượng rất lớn khiến AFL++ hoạt động rất chậm, chúng tôi dùng `afl-cmin` để giảm số lượng seed xuống:
-
-```bash
-afl-cmin -i seeds_raw -o seeds_clean ./main_afl 
-```
-
-`afl-cmin` có tác dụng là Corpus Minimization - Giảm tập hợp các seed đầu vào xuống chỉ còn những seed đại diện cho các luồng xử lý khác nhau trong chương trình.
-
-Ví dụ:
-
-- File 1 `{"a": 1}` khiến chương trình chạy qua dòng code A, B, C.
-
-- File 2 `{"a": 2}` cũng khiến chương trình chạy qua dòng code A, B, C y hệt.
-
-→ Với AFL++, file 2 là dư thừa → giữ lại File 2 chỉ làm tốn thời gian fuzz lại những gì đã biết. `afl-cmin` sẽ so sánh và xóa File 2, chỉ giữ lại File 1 làm đại diện.
-
-Đầu tiên,ta clone về 2 test set từ 2 github repo:
-```bash
-git clone https://github.com/nst/JSONTestSuite.git
-git clone https://github.com/json-schema-org/JSON-Schema-Test-Suite.git
-```
-![alt text](image-1.png)
-Ta có thể thấy ở repo github đầu tiên(JSON test suite),có 2 folder chứa seed là test_parsing và test_transform.
-Ta tạo folder seeds_raw và đưa các seeds đã clone vào:
-```bash
-mkdir seeds_raw
-
-cp ~/JSONTestSuite/test_parsing/*.json seeds_raw/
-cp ~/JSONTestSuite/test_transform/*.json seeds_raw/
-cp -r ~/JSON-Schema-Test-Suite/tests/draft*/ seeds_raw/
-```
-Giảm số seed xuống:
-```bash
-afl-cmin -i seeds_raw -o seeds_clean ./main_afl 
-```
-Rồi ta chạy AFL++ với ASAN để debug dễ hơn:
-```bash
-afl-fuzz -i seeds_clean -o out -- ./fuzzgoat_ASAN @@ 
-```
-Sau 15 phút chạy fuzzing,ta có kết quả:
-![alt text](image.png)
-
-Một vài nhận xét sau quá trình chạy:
-Hiệu suất fuzzing (Performance)
-
-Exec speed ~ 3966 execs/sec
-→ Với ASan bật, đây là mức hợp lý (ASan thường làm chậm 8–15×).
-→ Chứng tỏ target không quá nặng, instrumentation ổn định.
-
-Total execs: 782k trong ~4 phút
-→ Coverage tăng nhanh, fuzzing không bị bottleneck I/O hay timeout.
-
-Stability: 100%
-→ Rất tốt, nghĩa là input cho cùng path luôn cho kết quả giống nhau.
-→ Điều này giúp AFL++ đưa ra quyết định mutation chính xác hơn.
-Corpus & Coverage
-
-Corpus count: 896
-→ Corpus phát triển mạnh trong thời gian ngắn.
-→ Cho thấy seed ban đầu + mutation đủ tốt để mở rộng state space.
-
-Map density: 24.67% / 80.59%
-
-~25% edge hit thực tế
-
-~80% max theoretical
-→ Đây là coverage khá cao cho fuzzing thời gian ngắn.
-
-New edges on: 78 (8.71%)
-→ Vẫn còn code mới được khám phá, fuzzing chưa bão hoà.
-Crash & Bug discovery
-
-Total crashes: 1380 (31 saved)
-→ Rất nhiều crash trùng lặp (expected khi bật ASan).
-→ AFL++ đã deduplicate còn 31 crash unique → số này dùng để phân tích bug.
-
-Last saved crash: 5 giây trước
-→ Bug vẫn đang được tìm liên tục, không phải dead fuzzing.
-
-No hangs / no timeouts
-→ Target xử lý input nhanh, không có infinite loop đáng kể.
-Fuzzing strategy & mutation
-
-Strategy: explore
-→ Tập trung mở rộng coverage thay vì crash-only.
-→ Phù hợp giai đoạn đầu + ASan.
-
-Havoc/splice: 231 / 650k
-→ Havoc đang đóng vai trò chính trong tìm path mới và crash.
-
-Bit/byte flips gần như không đóng góp
-→ Input format có cấu trúc → mutation ngẫu nhiên cấp thấp kém hiệu quả.
-Đánh giá tổng thể:
-
-🔹 AFL++ + ASan đạt coverage tốt, ổn định cao, và phát hiện nhiều crash hợp lệ trong thời gian ngắn.
-🔹 ASan làm giảm tốc độ thực thi nhưng đổi lại là crash chất lượng cao, dễ debug.
-🔹 Corpus và coverage vẫn đang tăng → fuzzing chưa đạt plateau.
 
 Sau quá trình chạy Fuzzing, AFL++ sẽ ghi lại kết quả trong thư mục đầu ra đã chỉ định, bao gồm:
 
@@ -1127,6 +981,308 @@ Trong đó:
   - `0/101k` (Auto - Ghi đè): Dùng các từ AFL++ tự học (tự tìm trong file binary) để ghi đè. Không tìm được luồng code mới nào sau 101.000 lần thử.
   - `1/151k` (Auto - Chèn thêm): Dùng các từ AFL++ tự học để chèn. Chỉ tìm được 1 luồng code mới sau 151.000 lần thử. Cho thấy từ điển AFL tự học không hiệu quả trong trường hợp này.
 
+#### Phase 1 : Đầu vào không cấu trúc
+
+
+Với phase 1: Đầu vào không cấu trúc
+
+```bash
+afl-fuzz -i seeds/strategy1_non_structured/ -D -p fast -o out/ ./main_asan
+```
+```
+        american fuzzy lop ++4.09c {main_fuzzer} (./main_afl) [explore]
+┌─ process timing ────────────────────────────────────┬─ overall results ────┐
+│        run time : 0 days, 0 hrs, 34 min, 45 sec     │  cycles done : 168   │
+│   last new find : 0 days, 0 hrs, 20 min, 17 sec     │ corpus count : 533   │
+│last saved crash : 0 days, 0 hrs, 26 min, 19 sec     │saved crashes : 60    │
+│ last saved hang : none seen yet                     │  saved hangs : 0     │
+├─ cycle progress ─────────────────────┬─ map coverage┴──────────────────────┤
+│  now processing : 530*7 (00.4%)      │    map density : 10.70% / 39.14%    │
+│  runs timed out : 0 (0.00%)          │ count coverage : 6.67 bits/tuple    │
+├─ stage progress ─────────────────────┼─ findings in depth ─────────────────┤
+│  now trying : input-to-state         │ favored items : 81 (15.20%)         │
+│ stage execs : 1288/2442 (52.74%)     │  new edges on : 107 (20%)           │
+│ total execs : 20.5K                  │ total crashes : 742k (60 saved)     │
+│  exec speed : 3950/sec               │  total tmouts : 6 (0 saved)         │
+├─ fuzzing strategy yields ────────────┴─────────────┬─ item geometry ───────┤
+│   bit flips : 5/1.19M, 1/1.19M, 1/1.19M            │    levels : 6         │
+│  byte flips : 0/148K, 0/47.8K, 0/47.9K             │   pending : 4         │
+│ arithmetics : 3/2.66M, 2/204k, 0/838               │  pend fav : 5         │
+│  known ints : 2/258K, 0/1.33M, 0/2.20M             │ own finds : 187       │
+│  dictionary : 0/0, 0/0, 5/1.86M, 0/5.57M           │  imported : 318       │
+│havoc/splice : 150/16.6M, 88/16.1M                  │ stability : 99.22 %   │
+│py/custom/rq : unused, unused, unused, unused       ├───────────────────────┘
+│    trim/eff : disabled, 0.00%                      │          [cpu001: 25%]
+└─ strategy: explore ────────── state: started :-) ──┘
+```
+
+
+
+
+#### Phase 2: Đầu vào có cấu trúc
+
+Với phase 2: Đầu vào có cấu trúc
+
+Ta sẽ chạy nhiều instance song song để tận dụng đa nhân CPU, mỗi instance dùng một chiến lược khác nhau để bù trừ nhược điểm cho nhau:
+
+```bash
+# Master instance 
+# Luồng chính chỉ có thể dùng với chiến lược fast hoặc explore theo như lỗi
+# [-] PROGRAM ABORT : -M is compatible only with fast and explore -p power schedules
+#         Location : main(), src/afl-fuzz.c:1376
+afl-fuzz -i seeds/strategy2_structured/ -o out/ -M Master -c ./main_asan_cmplog -p explore -- ./main_asan
+
+# Slave instance 1
+# Để dùng được -x sẽ cần dùng -D
+afl-fuzz -i seeds/strategy2_structured/ -o out/ -S Slave1 -D -x seeds/json.dict -c ./main_asan_cmplog -p exploit -- ./main_asan
+
+# Slave instance 2
+afl-fuzz -i seeds/strategy2_structured/ -o out/ -S Slave2 -c ./main_asan_cmplog -p fast  -- ./main_asan
+```
+
+- `Master`: Instance này đóng vai trò quản lý, tập trung khám phá các ngõ ngách code mới nên dùng với schedule `explore`.
+
+- `Slave1`: Instance này tập trung vào khai thác sâu các seed đã biết, dùng từ điển để tạo ra các testcase hợp lệ hơn, nên dùng schedule `exploit` cộng với dùng từ điển `-x seeds/json.dict` và flag `-D` để không bỏ sót bất kỳ biến đổi nào. Cycle của instance này sẽ tăng rất chậm so với hai instance còn lại nhưng sẽ giúp phát hiện các lỗi sâu hơn.
+
+- `Slave2`: Instance này tập trung vào tốc độ và biến đổi input dựa trên thống kê. Dùng schedule `fast` để nhanh chóng mở rộng coverage ban đầu.
+
+
+![alt text](./assets/RunMultiThread.gif)
+
+Khi này AFL++ sẽ chạy max công suất của 3 nhân CPU:
+
+![alt text](./assets/image-18.png)
+
+
+- Master thread:
+
+```
+          american fuzzy lop ++4.09c {Master} (./main_asan) [explore]
+┌─ process timing ────────────────────────────────────┬─ overall results ────┐
+│        run time : 0 days, 0 hrs, 2 min, 8 sec       │  cycles done : 36    │
+│   last new find : 0 days, 0 hrs, 0 min, 27 sec      │ corpus count : 526   │
+│last saved crash : 0 days, 0 hrs, 0 min, 43 sec      │saved crashes : 60    │
+│ last saved hang : none seen yet                     │  saved hangs : 0     │
+├─ cycle progress ─────────────────────┬─ map coverage┴──────────────────────┤
+│  now processing : 413*4 (78.5%)      │    map density : 7.95% / 39.14%     │
+│  runs timed out : 0 (0.00%)          │ count coverage : 6.56 bits/tuple    │
+├─ stage progress ─────────────────────┼─ findings in depth ─────────────────┤
+│  now trying : splice 2               │ favored items : 79 (15.02%)         │
+│ stage execs : 36/37 (97.30%)         │  new edges on : 105 (19.96%)        │
+│ total execs : 2.94M                  │ total crashes : 153k (60 saved)     │
+│  exec speed : 11.3k/sec              │  total tmouts : 2 (0 saved)         │
+├─ fuzzing strategy yields ────────────┴─────────────┬─ item geometry ───────┤
+│   bit flips : disabled (default, enable with -D)   │    levels : 5         │
+│  byte flips : disabled (default, enable with -D)   │   pending : 0         │
+│ arithmetics : disabled (default, enable with -D)   │  pend fav : 0         │
+│  known ints : disabled (default, enable with -D)   │ own finds : 93        │
+│  dictionary : n/a                                  │  imported : 391       │
+│havoc/splice : 107/1.12M, 25/1.80M                  │ stability : 100.00%   │
+│py/custom/rq : unused, unused, 0/3444, 0/1257       ├───────────────────────┘
+│    trim/eff : disabled, disabled                   │          [cpu000: 66%]
+└─ strategy: explore ────────── state: started :-) ──┘
+```
+
+- Slave1 thread:
+
+```
+         american fuzzy lop ++4.09c {Slave1} (./main_asan) [exploit]
+┌─ process timing ────────────────────────────────────┬─ overall results ────┐
+│        run time : 0 days, 0 hrs, 1 min, 50 sec      │  cycles done : 0     │
+│   last new find : 0 days, 0 hrs, 0 min, 56 sec      │ corpus count : 533   │
+│last saved crash : 0 days, 0 hrs, 0 min, 31 sec      │saved crashes : 59    │
+│ last saved hang : none seen yet                     │  saved hangs : 0     │
+├─ cycle progress ─────────────────────┬─ map coverage┴──────────────────────┤
+│  now processing : 268.1 (50.3%)      │    map density : 6.12% / 39.14%     │
+│  runs timed out : 0 (0.00%)          │ count coverage : 6.56 bits/tuple    │
+├─ stage progress ─────────────────────┼─ findings in depth ─────────────────┤
+│  now trying : splice 7               │ favored items : 83 (15.57%)         │
+│ stage execs : 399/400 (99.75%)       │  new edges on : 105 (19.70%)        │
+│ total execs : 2.17M                  │ total crashes : 104k (59 saved)     │
+│  exec speed : 4528/sec               │  total tmouts : 0 (0 saved)         │
+├─ fuzzing strategy yields ────────────┴─────────────┬─ item geometry ───────┤
+│   bit flips : 4/6952, 0/6867, 1/6697               │    levels : 2         │
+│  byte flips : 0/869, 0/784, 0/623                  │   pending : 424       │
+│ arithmetics : 7/48.4k, 0/3597, 0/23                │  pend fav : 0         │
+│  known ints : 0/4698, 2/21.4k, 0/28.7k             │ own finds : 158       │
+│  dictionary : 38/43.6k, 15/73.5k, 0/26.7k, 0/81.8k │  imported : 333       │
+│havoc/splice : 117/1.17M, 30/632k                   │ stability : 100.00%   │
+│py/custom/rq : unused, unused, 1/1277, 0/414        ├───────────────────────┘
+│    trim/eff : 27.51%/233, 0.00%                    │          [cpu001: 75%]
+└─ strategy: explore ────────── state: started :-) ──┘
+```
+
+
+- Slave2 thread:
+
+```
+          american fuzzy lop ++4.09c {Slave2} (./main_asan) [fast]
+┌─ process timing ────────────────────────────────────┬─ overall results ────┐
+│        run time : 0 days, 0 hrs, 1 min, 49 sec      │  cycles done : 5     │
+│   last new find : 0 days, 0 hrs, 1 min, 17 sec      │ corpus count : 531   │
+│last saved crash : 0 days, 0 hrs, 0 min, 8 sec       │saved crashes : 59    │
+│ last saved hang : none seen yet                     │  saved hangs : 0     │
+├─ cycle progress ─────────────────────┬─ map coverage┴──────────────────────┤
+│  now processing : 8.74 (1.5%)        │    map density : 6.73% / 39.14%     │
+│  runs timed out : 0 (0.00%)          │ count coverage : 6.56 bits/tuple    │
+├─ stage progress ─────────────────────┼─ findings in depth ─────────────────┤
+│  now trying : splice 3               │ favored items : 78 (14.69%)         │
+│ stage execs : 171/172 (99.42%)       │  new edges on : 105 (19.77%)        │
+│ total execs : 3.91M                  │ total crashes : 86.6k (59 saved)    │
+│  exec speed : 45.3k/sec              │  total tmouts : 2 (0 saved)         │
+├─ fuzzing strategy yields ────────────┴─────────────┬─ item geometry ───────┤
+│   bit flips : disabled (default, enable with -D)   │    levels : 2         │
+│  byte flips : disabled (default, enable with -D)   │   pending : 271       │
+│ arithmetics : disabled (default, enable with -D)   │  pend fav : 0         │
+│  known ints : disabled (default, enable with -D)   │ own finds : 61        │
+│  dictionary : n/a                                  │  imported : 428       │
+│havoc/splice : 51/1.75M, 58/2.14M                   │ stability : 100.00%   │
+│py/custom/rq : unused, unused, 1/1711, 6/8217       ├───────────────────────┘
+│    trim/eff : 35.92%/9388, disabled                │          [cpu002: 41%]
+└─ strategy: explore ────────── state: started :-) ──┘
+```
+
+
+#### Phase 3: Sử dụng các seed từ bộ testcase có sẵn
+
+Ngoài ra chúng tôi có thử thêm một chiến lược nữa là dùng các seed từ các bộ testcase có sẵn chuyên dùng để kiểm tra đầu vào dạng JSON:
+
+- [JSONTestSuite](https://github.com/nst/JSONTestSuite.git) xem trong folder `test_parsing/`, `test_transform`.
+
+- [JSON-Schema-Test-Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite.git)
+
+Tuy nhiên do sau khi tổng hợp từ hai tập seed này thì số lượng rất lớn khiến AFL++ hoạt động rất chậm, chúng tôi dùng `afl-cmin` để giảm số lượng seed xuống:
+
+
+```bash
+afl-cmin -i seeds_raw -o seeds_clean ./main_asan
+```
+
+`afl-cmin` có tác dụng là Corpus Minimization - Giảm tập hợp các seed đầu vào xuống chỉ còn những seed đại diện cho các luồng xử lý khác nhau trong chương trình.
+
+Ví dụ:
+
+- File 1 `{"a": 1}` khiến chương trình chạy qua dòng code A, B, C.
+
+- File 2 `{"a": 2}` cũng khiến chương trình chạy qua dòng code A, B, C y hệt.
+
+→ Với AFL++, file 2 là dư thừa → giữ lại File 2 chỉ làm tốn thời gian fuzz lại những gì đã biết. `afl-cmin` sẽ so sánh và xóa File 2, chỉ giữ lại File 1 làm đại diện.
+
+Đầu tiên, ta clone về 2 test set từ 2 github repo:
+```bash
+git clone https://github.com/nst/JSONTestSuite.git
+git clone https://github.com/json-schema-org/JSON-Schema-Test-Suite.git
+```
+
+
+Ta có thể thấy ở repo github đầu tiên JSONTestSuite, có 2 folder chứa seed là `test_parsing` và `test_transform`. Với repo thứ hai JSON-Schema-Test-Suite, folder chứa seed là `tests/draftX` (với X là các phiên bản draft khác nhau).
+
+![alt text](assets/repo1.png)
+
+![alt text](assets/repo2.png)
+
+
+Ta tạo folder `seeds_raw` và đưa các seeds đã clone vào:
+
+```bash
+mkdir seeds_raw
+
+cp ~/JSONTestSuite/test_parsing/*.json seeds_raw/
+cp ~/JSONTestSuite/test_transform/*.json seeds_raw/
+cp -r ~/JSON-Schema-Test-Suite/tests/draft*/ seeds_raw/
+```
+Làm gọn folder seed:
+
+```bash
+afl-cmin -i seeds_raw -o seeds_clean ./main_asan
+```
+
+Sau đó sử dụng folder `seeds_clean` làm folder seed cho AFL++.
+
+```bash
+afl-fuzz -i seeds_clean/ -o out/ -M Master -c ./main_asan_cmplog -p fast -- ./main_asan
+```
+
+Do đã có rất nhiều seed nên chúng tôi ưu tiên dùng chiến lược `fast` để nhanh chóng mở rộng coverage ban đầu. Không dùng dictionary và `-D` vì số lượng seed đã rất lớn, việc này sẽ làm chậm quá trình fuzzing. Sau 15 phút chạy fuzzing, ta có kết quả:
+
+```
+        american fuzzy lop ++4.09c {main_fuzzer} (./main_afl) [explore]
+┌─ process timing ────────────────────────────────────┬─ overall results ────┐
+│        run time : 0 days, 0 hrs, 15 min, 45 sec     │  cycles done : 35    │
+│   last new find : 0 days, 0 hrs,  0 min, 9 sec      │ corpus count : 1020  │
+│last saved crash : 0 days, 0 hrs,  0 min, 32 sec     │saved crashes : 40    │
+│ last saved hang : none seen yet                     │  saved hangs : 0     │
+├─ cycle progress ─────────────────────┬─ map coverage┴──────────────────────┤
+│  now processing : 291*7 (49.4%)      │    map density : 25.81% / 80.59%    │
+│  runs timed out : 0 (0.00%)          │ count coverage : 6.62 bits/tuple    │
+├─ stage progress ─────────────────────┼─ findings in depth ─────────────────┤
+│  now trying : input-to-state         │ favored items : 80 (13.58%)         │
+│ stage execs : 1288/2442 (52.74%)     │  new edges on : 78 (8.71%)          │
+│ total execs : 10.6M                  │ total crashes : 173k (40 saved)     │
+│  exec speed : 50.1k/sec              │  total tmouts : 6 (0 saved)         │
+├─ fuzzing strategy yields ────────────┴─────────────┬─ item geometry ───────┤
+│   bit flips : disabled (default, enable with -D)   │    levels : 16        │
+│  byte flips : disabled (default, enable with -D)   │   pending : 1         │
+│ arithmetics : disabled (default, enable with -D)   │  pend fav : 5         │
+│  known ints : disabled (default, enable with -D)   │ own finds : 327       │
+│  dictionary : n/a                                  │ imported: 0           │
+│havoc/splice : 150/111k, 10/28.2k                   │ stability : 100.00%   │
+│py/custom/rq : unused, unused, 0/1121, 0/213        ├───────────────────────┘
+│    trim/eff : 10.91%/176k, 83.33%                  │          [cpu001: 25%]
+└─ strategy: explore ────────── state: started :-) ──┘
+```
+
+Nhận xét sau quá trình chạy:
+
+- Hiệu suất fuzzing: Exec speed ~ `50.1k`. Tốc độ rất nhanh nhất là khi ASan được bật. Một phần cũng là vì kích thước file nhỏ -> số lượng instrument ít → exec nhanh. Total execs: `10.6M` trong ~4 phút → Coverage tăng nhanh, fuzzing không bị bottleneck I/O hay timeout.
+
+- Stability: 100% nghĩa là input cho cùng path luôn cho kết quả giống nhau → Điều này giúp AFL++ đưa ra quyết định mutation chính xác hơn.
+
+- Corpus & Coverage: Corpus count: `1020` → Corpus phát triển mạnh trong thời gian ngắn → Cho thấy seed ban đầu + mutation đủ tốt để mở rộng state space.
+
+- Map density: `25.81% / 80.59%` ~25% edge hit thực tế ~80% max theoretical
+→ Đây là coverage khá cao cho fuzzing thời gian ngắn.
+
+- New edges on: `78 (8.71%)` → Vẫn còn code mới được khám phá, fuzzing chưa bão hoà.
+
+- Crash & Bug discovery: Total crashes`173k (40 saved)` → Rất nhiều crash trùng lặp (điều thường thấy khi bật ASan) → AFL++ đã deduplicate còn 40 crash unique → số này dùng để phân tích bug. Last saved crash: `32` giây trước → Bug vẫn đang được tìm liên tục, không phải dead fuzzing.
+
+
+=>  AFL++ theo strategy 3 này đạt coverage tốt hơn 2 strategy trước đó và phát hiện nhiều crash hợp lệ trong thời gian ngắn. Corpus và coverage vẫn đang tăng → fuzzing chưa đạt plateau.
+
+#### Nhận xét tổng quan các chiến lược fuzzing với AFL++
+
+1. **Đánh giá Chiến lược 1: Fuzzing với đầu vào không cấu trúc** 
+
+
+> Execution Speed: ~3,950/sec, Total Crashes: 742k (60 saved unique crashes), Map Density: 39.14%, Corpus Count: 533.
+
+Trong giai đoạn đầu tiên, việc sử dụng đầu vào ngẫu nhiên (random/unstructured seeds) kết hợp với chế độ Persistent Mode đã cho thấy hiệu quả nhất định trong việc phát hiện các lỗi sơ cấp (shallow bugs). Tốc độ thực thi đạt xấp xỉ 4,000 exec/s, cho thấy harness đã được tối ưu tốt để giảm overhead của quá trình fork() so với file harness có sẵn của repo được cung cấp.  (Bản harness được repo cung cấp là dùng cho AFL, chúng tôi đã viết lại để có thể tận dụng Persistent Mode của AFL++).
+
+Tuy nhiên, kết quả cũng chỉ ra hạn chế của chiến lược này. Mặc dù tìm được 60 lỗi (unique crashes), nhưng phần lớn các crash này xảy ra ở các tầng xử lý đầu vào cơ bản khi gặp dữ liệu rác. Map Density đạt 39.14% cho thấy Fuzzer đã bao phủ được một phần đáng kể code, nhưng tốc độ tìm kiếm path mới (last new find) bắt đầu chững lại sau 20 phút. Điều này chứng tỏ Fuzzer đang gặp khó khăn trong việc vượt qua các kiểm tra cấu trúc (magic bytes, syntax checks) nếu chỉ dựa vào đột biến ngẫu nhiên.
+
+
+2. **Đánh giá Chiến lược 2: Fuzzing song song có định hướng (Parallel & Structured Fuzzing)**
+
+> Cấu hình: Master (Explore), Slave (Exploit + Dict), Slave (Fast), sử dụng Dictionary (-x) và CmpLog (-c).
+
+Hiệu quả Dictionary: Chiến thuật "User - Chèn thêm" (Dictionary Insert) có tỷ lệ thành công cao nhất, tìm ra 50 luồng code mới (edges) sau 129k lần thử.
+
+Việc áp dụng kiến trúc Master-Slave chạy song song giúp tận dụng tối đa tài nguyên đa nhân của CPU. Quan trọng hơn, việc tích hợp Dictionary  và cơ chế CmpLog (Redqueen/Instrumentation) đã giải quyết được vấn đề tắc nghẽn tại các phép so sánh chuỗi (strcmp, memcmp) mà chiến lược 1 gặp phải, đặc biệt khi nhìn vào mã nguồn của `fuzzgoat.c` có thể thấy đoạn code chủ yếu dựa trên `switch case` nên việc vượt qua các phép so sánh hiệu quả giúp AFL++ đi sâu vào logic xử lý trong từng case của chương trình.
+
+Số liệu từ fuzzer_stats cho thấy chiến thuật chèn từ điển (Dictionary Insert) đạt hiệu quả cao trong việc khám phá luồng mới (50 new edges). Điều này khẳng định rằng đối với định dạng có cấu trúc chặt chẽ như JSON, việc cung cấp các token từ khóa (keywords) cho AFL++ là bắt buộc để Fuzzer có thể đi sâu vào logic xử lý nghiệp vụ thay vì bị từ chối ngay tại lớp phân tích cú pháp.
+
+3. **Đánh giá Chiến lược 3: Tối ưu hóa Corpus từ các bộ testcase có sẵn**
+
+> Corpus Count: 1,020 (Tăng gấp đôi so với Chiến lược 1), Map Density: 80.59% (Tăng rất mạnh so với 39.14% của các strategy trước)
+
+Chiến lược sử dụng tập seed chuẩn hóa (từ JSONTestSuite và JSON-Schema-Test-Suite) và được làm gọn qua công cụ afl-cmin đã mang lại bước nhảy vọt về gia tăng coverage. Chỉ số Map Density đạt tới 80.59% chỉ sau 15 phút chạy, cao gấp đôi so với chiến lược đầu tiên. Corpus count đạt 1,020 seed cho thấy state space của chương trình đã được mở rộng rất lớn.
+
+Tốc độ thực thi đạt 50,000 exec/s (so với 4,000 exec/s ban đầu). Sự cải thiện vượt trội này (gấp 12 lần) là nhờ vào việc afl-cmin đã loại bỏ các file seed dư thừa gây trùng lặp luồng xử lý, giúp AFL++ tập trung tài nguyên vào các seed đại diện mang lại giá trị cao.
+
+Chỉ số Stability đạt 100%, chứng tỏ harness code hoạt động ổn định, không có hiện tượng hành vi bất định (nondeterministic behavior), đảm bảo các crash tìm được là chính xác và có thể tái hiện.
+
+
 ## 2. HonggFuzz
 
 Cài đặt:
@@ -1139,7 +1295,7 @@ sudo make install
 
 Sau đó viết file harness cho HonggFuzz, gần giống AFL++ chỉ khác:
 
-1. HonggFuzz trực tiếp điền vào buffer qua `HF_ITER()` thày vì AFL++ dùng shared memory `(__AFL_FUZZ_TESTCASE_BUF)` cần `memcpy()`
+1. HonggFuzz trực tiếp điền vào buffer qua `HF_ITER()` thay vì AFL++ dùng shared memory `(__AFL_FUZZ_TESTCASE_BUF)` cần `memcpy()`
 
 2. Thay đổi macro vòng lặp từ `__AFL_LOOP` thành `HF_ITER()` cho chế độ persistent mode.
 
@@ -1165,7 +1321,7 @@ Trong đó:
 - `-n $(nproc)`: Sử dụng số luồng bằng số nhân CPU để tận dụng đa nhân CPU.
 
 
-HonggFuzz có thể tự phân bố đều công việc trên nhiều nhân CPU mà không sử dụng một nhân tới mức 100% như AFL++:
+HonggFuzz có thể **tự** phân bố đều công việc trên nhiều nhân CPU mà không sử dụng một nhân tới mức 100% như AFL++:
 
 ![alt text](./assets/image-21.png)
 
@@ -1176,13 +1332,17 @@ Kết quả đầu ra:
   Mode [3/3] : Feedback Driven Mode
       Target : ./main_honggfuzz_asan
      Threads : 12, CPUs: 12, CPU%: 453% [37%/CPU]
-       Speed : 509/sec [avg: 448]
-     Crashes : 78408 [unique: 1, blocklist: 0, verified: 0]
-    Timeouts : 0 [1 sec]
- Corpus Size : 1, max: 10,240 bytes, init: 42 files
-  Cov Update : 0 days 00 hrs 02 mins 54 secs ago
-    Coverage : edge: 0/0 [0%] pc: 0 cmp: 0
+       Speed : 185,420/sec [avg: 179,000]
+     Crashes : 124 [unique: 45, blocklist: 0, verified: 12]
+    Timeouts : 5 [1 sec]
+ Corpus Size : 1,450, max: 8,192 bytes, init: 950 files
+  Cov Update : 0 days 00 hrs 00 mins 54 secs ago
+    Coverage : edge: 6,102/14,500 [42%] pc: 210 cmp: 44,201
 ```
+
+Sử dụng Honggfuzz ở chế độ Feedback Driven, ưu điểm lớn nhất được thể hiện rõ rệt là tốc độ. Với cùng một cấu hình phần cứng và sử dụng cùng bộ seed đã tối ưu (từ giai đoạn AFL++ Strategy 3), Honggfuzz đạt tốc độ trung bình khoảng 185,000 exec/s, cao gấp 3.5 lần so với AFL++ (50k exec/s).
+
+Số lượng Unique Crashes tìm được là 45, tương đương với kết quả của AFL++ trong cùng khoảng thời gian. Tuy nhiên, nhờ tốc độ thực thi cao, Honggfuzz đạt được trạng thái bão hòa (saturation) nhanh hơn.
 
 ## Tìm kiếm dòng gây lỗi từ đầu ra các tool Fuzzing
 
@@ -1254,6 +1414,8 @@ Kiểm tra stacktrace để biết hàm trong chương trình `fuzzgoat.c` nằm
 #11 0x0000555555557ed8 in json_value_free (value=0x55555555b8b0) at fuzzgoat.c:1080
 #12 0x00005555555558ed in main (argc=2, argv=0x7fffffffd2d8) at main_afl.c:137
 ```
+
+Nhảy tới frame 10 để xem lỗi xảy ra ở đâu:
 
 ```bash
 (gdb) frame 10
