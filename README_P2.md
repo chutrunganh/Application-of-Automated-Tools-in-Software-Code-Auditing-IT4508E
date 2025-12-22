@@ -27,6 +27,12 @@ fuzzgoat_source_code/
 
 Với fuzzers như AFL++, harness thường là một chương trình có hàm main() đọc dữ liệu từ stdin hoặc @@ (đường dẫn file do AFL cấp) rồi chuyển dữ liệu đó vào hàm bạn muốn fuzz. Trong repo này, `main.c` chính là harness để chạy AFL++.
 
+Repo đã cung cấp sẵn harness `main.c` để chạy AFL, nhóm dựa vào file này để sửa đổi các harness riêng biệt cho từng tool (ESBMC, AFL++, HongFuzz) nhằm tối ưu hiệu năng hoạt động.
+
+Với file `main.c`, nó đọc toàn bộ nội dung một file JSON bất kỳ vào bộ nhớ, truyền trực tiếp dữ liệu đó cho hàm `json_parse`, sau đó duyệt đệ quy toàn bộ cấu trúc JSON để kích hoạt nhiều nhánh thực thi và phép truy cập bộ nhớ khác nhau.
+
+![alt text](./assets/main_harness.png)
+
 Biên dịch:
 
 ```bash
@@ -147,7 +153,7 @@ settings->mem_free (value->u.string.ptr, settings->user_data);
 ```c
 if (value->u.string.length == 1) {
   char *null_pointer = NULL;
-  printf ("%d", *null_pointer); // Dòng gây lỗi
+  printf ("%d", *null_pointer); 
 }
 ```
 - **Phân tích nguyên nhân**: Đoạn mã kiểm tra nếu chuỗi có độ dài bằng 1. Nếu đúng, nó khởi tạo một con trỏ `null_pointer` với giá trị `NULL` và cố gắng truy cập (dereference) giá trị mà nó trỏ tới để in ra.
@@ -391,7 +397,7 @@ int main() {
 Chạy:
 
 ```bash
-esbmc harness_esbmc_first_try.c fuzzgoat.c --unwind 10
+esbmc harness_esbmc fuzzgoat.c --unwind 10
 ```
 Kết quả:
 
@@ -460,7 +466,7 @@ value = value->u.object.values [value->u.object.length--].value;
 
 4. State 46 : Bắt đầu vào hàm `json_value_free_ex`.
 
-5. State 69:  báo vi phạm thuộc tính tại line 258 khi dereference chỉ số mảng. Với length = 2, biểu thức values[length--] sẽ truy cập values[2] rồi mới giảm length xuống 1. Index 2 là vượt biên (out-of-bounds).
+5. State 69:  báo vi phạm thuộc tính tại line 258 khi dereference chỉ số mảng. Với `length = 2`, biểu thức `values[length--]` sẽ truy cập `values[2]` rồi mới giảm length xuống 1. Index 2 là vượt biên (out-of-bounds).
 
 
 Sau khi vá lỗi này bằng cách
@@ -1059,18 +1065,18 @@ Khi này AFL++ sẽ chạy max công suất của 3 nhân CPU:
 ```
           american fuzzy lop ++4.09c {Master} (./main_asan) [explore]
 ┌─ process timing ────────────────────────────────────┬─ overall results ────┐
-│        run time : 0 days, 0 hrs, 2 min, 8 sec       │  cycles done : 36    │
-│   last new find : 0 days, 0 hrs, 0 min, 27 sec      │ corpus count : 526   │
-│last saved crash : 0 days, 0 hrs, 0 min, 43 sec      │saved crashes : 60    │
+│        run time : 0 days, 0 hrs, 15 min, 8 sec      │  cycles done : 55    │
+│   last new find : 0 days, 0 hrs, 2 min, 27 sec      │ corpus count : 726   │
+│last saved crash : 0 days, 0 hrs, 1 min, 43 sec      │saved crashes : 70    │
 │ last saved hang : none seen yet                     │  saved hangs : 0     │
 ├─ cycle progress ─────────────────────┬─ map coverage┴──────────────────────┤
-│  now processing : 413*4 (78.5%)      │    map density : 7.95% / 39.14%     │
+│  now processing : 413*4 (78.5%)      │    map density : 10.95% / 39.14%    │
 │  runs timed out : 0 (0.00%)          │ count coverage : 6.56 bits/tuple    │
 ├─ stage progress ─────────────────────┼─ findings in depth ─────────────────┤
 │  now trying : splice 2               │ favored items : 79 (15.02%)         │
 │ stage execs : 36/37 (97.30%)         │  new edges on : 105 (19.96%)        │
-│ total execs : 2.94M                  │ total crashes : 153k (60 saved)     │
-│  exec speed : 11.3k/sec              │  total tmouts : 2 (0 saved)         │
+│ total execs : 20.94M                 │ total crashes : 253k (70 saved)     │
+│  exec speed : 11.3k/sec              │  total tmouts : 5 (0 saved)         │
 ├─ fuzzing strategy yields ────────────┴─────────────┬─ item geometry ───────┤
 │   bit flips : disabled (default, enable with -D)   │    levels : 5         │
 │  byte flips : disabled (default, enable with -D)   │   pending : 0         │
@@ -1088,17 +1094,17 @@ Khi này AFL++ sẽ chạy max công suất của 3 nhân CPU:
 ```
          american fuzzy lop ++4.09c {Slave1} (./main_asan) [exploit]
 ┌─ process timing ────────────────────────────────────┬─ overall results ────┐
-│        run time : 0 days, 0 hrs, 1 min, 50 sec      │  cycles done : 0     │
-│   last new find : 0 days, 0 hrs, 0 min, 56 sec      │ corpus count : 533   │
-│last saved crash : 0 days, 0 hrs, 0 min, 31 sec      │saved crashes : 59    │
+│        run time : 0 days, 0 hrs, 15 min, 50 sec     │  cycles done : 2     │
+│   last new find : 0 days, 0 hrs, 3 min, 56 sec      │ corpus count : 833   │
+│last saved crash : 0 days, 0 hrs, 2 min, 31 sec      │saved crashes : 90    │
 │ last saved hang : none seen yet                     │  saved hangs : 0     │
 ├─ cycle progress ─────────────────────┬─ map coverage┴──────────────────────┤
-│  now processing : 268.1 (50.3%)      │    map density : 6.12% / 39.14%     │
+│  now processing : 268.1 (50.3%)      │    map density : 16.12% / 39.14%    │
 │  runs timed out : 0 (0.00%)          │ count coverage : 6.56 bits/tuple    │
 ├─ stage progress ─────────────────────┼─ findings in depth ─────────────────┤
 │  now trying : splice 7               │ favored items : 83 (15.57%)         │
 │ stage execs : 399/400 (99.75%)       │  new edges on : 105 (19.70%)        │
-│ total execs : 2.17M                  │ total crashes : 104k (59 saved)     │
+│ total execs : 2.17M                  │ total crashes : 290k (90 saved)     │
 │  exec speed : 4528/sec               │  total tmouts : 0 (0 saved)         │
 ├─ fuzzing strategy yields ────────────┴─────────────┬─ item geometry ───────┤
 │   bit flips : 4/6952, 0/6867, 1/6697               │    levels : 2         │
@@ -1118,17 +1124,17 @@ Khi này AFL++ sẽ chạy max công suất của 3 nhân CPU:
 ```
           american fuzzy lop ++4.09c {Slave2} (./main_asan) [fast]
 ┌─ process timing ────────────────────────────────────┬─ overall results ────┐
-│        run time : 0 days, 0 hrs, 1 min, 49 sec      │  cycles done : 5     │
-│   last new find : 0 days, 0 hrs, 1 min, 17 sec      │ corpus count : 531   │
-│last saved crash : 0 days, 0 hrs, 0 min, 8 sec       │saved crashes : 59    │
+│        run time : 0 days, 0 hrs, 15 min, 49 sec     │  cycles done : 5     │
+│   last new find : 0 days, 0 hrs, 1 min, 17 sec      │ corpus count : 831   │
+│last saved crash : 0 days, 0 hrs, 0 min, 8 sec       │saved crashes : 89    │
 │ last saved hang : none seen yet                     │  saved hangs : 0     │
 ├─ cycle progress ─────────────────────┬─ map coverage┴──────────────────────┤
-│  now processing : 8.74 (1.5%)        │    map density : 6.73% / 39.14%     │
+│  now processing : 8.74 (1.5%)        │    map density : 26.73% / 39.14%    │
 │  runs timed out : 0 (0.00%)          │ count coverage : 6.56 bits/tuple    │
 ├─ stage progress ─────────────────────┼─ findings in depth ─────────────────┤
 │  now trying : splice 3               │ favored items : 78 (14.69%)         │
-│ stage execs : 171/172 (99.42%)       │  new edges on : 105 (19.77%)        │
-│ total execs : 3.91M                  │ total crashes : 86.6k (59 saved)    │
+│ stage execs : 171/172 (99.42%)       │  new edges on : 05 (19.77%)         │
+│ total execs : 3.91M                  │ total crashes : 186.6k (89 saved)   │
 │  exec speed : 45.3k/sec              │  total tmouts : 2 (0 saved)         │
 ├─ fuzzing strategy yields ────────────┴─────────────┬─ item geometry ───────┤
 │   bit flips : disabled (default, enable with -D)   │    levels : 2         │
@@ -1213,7 +1219,7 @@ Do đã có rất nhiều seed nên chúng tôi ưu tiên dùng chiến lược 
 │last saved crash : 0 days, 0 hrs,  0 min, 32 sec     │saved crashes : 40    │
 │ last saved hang : none seen yet                     │  saved hangs : 0     │
 ├─ cycle progress ─────────────────────┬─ map coverage┴──────────────────────┤
-│  now processing : 291*7 (49.4%)      │    map density : 25.81% / 80.59%    │
+│  now processing : 741.320 (72.6%)    │    map density : 25.81% / 80.59%    │
 │  runs timed out : 0 (0.00%)          │ count coverage : 6.62 bits/tuple    │
 ├─ stage progress ─────────────────────┼─ findings in depth ─────────────────┤
 │  now trying : input-to-state         │ favored items : 80 (13.58%)         │
@@ -1432,7 +1438,7 @@ Xem các dòng code xung quanh đó:
 297                   char *null_pointer = NULL;
 298                   printf ("%d", *null_pointer);
 299                 }
-300     /****** END vulnerable code **************************************************/
+300    
 301
 302                 settings->mem_free (value->u.string.ptr, settings->user_data);
 303                 break;
@@ -1638,7 +1644,7 @@ void json_value_free_ex (json_settings * settings, json_value * value)
             //...
 ```
 
-Vì `value` chỉ là con trỏ trỏ đến cấu trúc dữ liệu chung, mà ta cần theo dõi thành phần bên trong của nó, sẽ gây ra crash trong hàm này. Kiểm tra xem `value` đang trỏ đến case nào với đầu vào ta đưa:
+Vì `value` chỉ là con trỏ trỏ đến cấu trúc dữ liệu chung, mà ta cần theo dõi thành phần bên trong của nó xem nó trỏ tới case nào trong cấu trúc switch case này. Kiểm tra xem `value` đang trỏ đến case nào với đầu vào ta đưa:
 
 ```bash
 (gdb) p value->type
