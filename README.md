@@ -96,7 +96,7 @@ flowchart TD
 
     - **Formal Reasoning**: Sử dụng logic toán học để chứng minh các thuộc tính của chương trình, gồm có các phương pháp như:
 
-        - **Hoare Logic**: Sử dụng bộ ba Hoare {$P$} $S$ {$Q$} với $P$ là điều kiện trước (precondition), $Q$ là điều kiện sau (postcondition) và $S$ là đoạn mã cần chứng minh. Bộ ba này khẳng định rằng nếu chương trình $S$ bắt đầu với điều kiện $P$ đúng, nó sẽ kết thúc với điều kiện $Q$ đúng. Ví dụ thực tế được dùng trong SPARK Ada.
+        - **Hoare Logic**: Sử dụng bộ ba Hoare $P$ | $S$ | $Q$ với $P$ là điều kiện trước (precondition), $Q$ là điều kiện sau (postcondition) và $S$ là đoạn mã cần chứng minh. Bộ ba này khẳng định rằng nếu chương trình $S$ bắt đầu với điều kiện $P$ đúng, nó sẽ kết thúc với điều kiện $Q$ đúng. Ví dụ thực tế được dùng trong SPARK Ada.
 
         - **Automated Theorem Prover**: Công cụ tự động sử dụng logic (như logic bậc nhất) để chứng minh các định lý về chương trình. Mục tiêu của ATP là chứng minh rằng một khẳng định (định lý) luôn đúng trong mọi trường hợp (tức là luôn hợp lệ theo logic), dựa trên một tập hợp các tiên đề hoặc giả định.
 
